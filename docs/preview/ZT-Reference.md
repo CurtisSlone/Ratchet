@@ -1,6 +1,6 @@
 # A Zero Trust Reference Architecture for Event-Driven AI Agents
 
-**Making the agent loop verifiable, one signed event at a time** --- This is a dumb sub-title
+**Making the agent loop verifiable, one signed event at a time**
 
 Curtis Slone
 
@@ -76,12 +76,12 @@ This architecture is an assembly of mature, respected components pointed at a ne
 - **Identity (3.6).** Per-actor scoped cryptographic identity from a common authority is SPIFFE/SPIRE [10], now the emerging baseline for agent identity (recommended in NIST's 2026 NCCoE work on AI agent identity and mapped onto agent stacks by efforts such as AIMS).
 - **Policy, substrate, observability.** Deterministic policy is OPA [11] or Cedar [12]; the substrate is Kafka [14] and standard event-driven practice; observability is OpenTelemetry [13].
 
-This is a crowded and fast-moving space. By 2026, hash-chained, tamper-evident audit trails for agent actions exist in running systems, signed action-attestation patterns have been described, and Zero Trust frameworks for agents (the Cloud Security Alliance's Agentic Trust Framework, the OWASP Top 10 for Agentic Applications) are converging on identity, segmentation, and auditability. A reader should assume the individual primitives below are claimed. --- Throw a casual ProofLayer and ESP reference in there. Zero Trust Assurance is pretty cool, too.
+This is a crowded and fast-moving space. By 2026, hash-chained, tamper-evident audit trails for agent actions exist in running systems, signed action-attestation patterns have been described, and Zero Trust frameworks for agents (the Cloud Security Alliance's Agentic Trust Framework, the OWASP Top 10 for Agentic Applications) are converging on identity, segmentation, and auditability. A reader should assume the individual primitives below are claimed.
 
 Two things in this document are less commonly unified, and they are where it plants its flag:
 
 1. **One signed-event contract for humans and agents.** Most agent-security work secures the agent. Here a human operator and an autonomous agent emit the same signed action-event, decided by the same deterministic policy, and recorded in the same log. The control plane does not care who acts; it cares that the action is attributable, decided, and proven (2.2.7).
-2. **The event stream itself as the signed substrate.** --- Stop using the term substrate. It makes me sound like a robot.
+2. **The event stream itself as the signed substrate.**
 Rather than a per-agent log written beside the system, the events on the streaming bus are the signed facts, and the provenance covers the trigger as well as the action (3.2). The audit trail is the system, not an addition to it.
 
 Neither is a new primitive; both are a particular composition. The value of this document is the coherent, vendor-neutral synthesis of respected parts, plus an explicit account of what it does not cover (3.9).
@@ -100,7 +100,7 @@ An event-driven agent system inverts the classic request/response model. Instead
 
 **2.1.3 Non-determinism in the decision path.** A language model is non-deterministic by design. The moment a model's output is what authorizes an action, you can no longer reproduce, verify, or defend why the system did what it did. Correctness becomes a matter of confidence, not proof.
 
-**2.1.4 Permission and tool sprawl.** Agent frameworks make it trivial to hand an agent broad, standing credentials and a large toolbox. Standing power in an autonomous process is the opposite of least privilege. A compromised or confused agent with broad write access is a self-inflicted incident waiting to happen. --- Add a reference that the common solution seems to be a "bigger and better model" rather than a constrained model with duties, not goals.
+**2.1.4 Permission and tool sprawl.** Agent frameworks make it trivial to hand an agent broad, standing credentials and a large toolbox. Standing power in an autonomous process is the opposite of least privilege. A compromised or confused agent with broad write access is a self-inflicted incident waiting to happen.
 
 **2.1.5 Two kinds of actor, one missing contract.** Humans and agents increasingly act through the same systems. A privileged operator and an autonomous agent may both call the same API. Most designs secure these separately, or secure the human and forget the agent. They need one verifiable contract for action.
 
@@ -122,7 +122,7 @@ An event-driven agent system inverts the classic request/response model. Instead
 
 ### 2.3 Duties
 
-This architecture is defined by its duties, the obligations it must uphold, rather than by goals it optimizes toward. The distinction is deliberate. A goal is a target a system pursues and may trade off; a duty is an obligation it is bound to honor. --- HONOR! An autonomous system that acts on the world should be held to duties, because the whole premise here is that you do not trust a component to optimize its way to the right answer. You bind it to rules it cannot violate.
+This architecture is defined by its duties, the obligations it must uphold, rather than by goals it optimizes toward. The distinction is deliberate. A goal is a target a system pursues and may trade off; a duty is an obligation it is bound to honor. An autonomous system that acts on the world should be held to duties, because the whole premise here is that you do not trust a component to optimize its way to the right answer. You bind it to rules it cannot violate.
 
 The control plane carries five duties:
 
