@@ -7,7 +7,7 @@ if (-not $Path) { Write-Output "read_file: missing -Path"; exit 1 }
 
 $root = $null
 if ((Test-Path $Proj) -and (Test-Path (Join-Path $Proj "project.json"))) { $root = $Proj }
-elseif (Test-Path (Join-Path (Join-Path "out" $Proj) "project.json")) { $root = Join-Path "out" $Proj }
+elseif (Test-Path (Join-Path (Join-Path "workspaces" $Proj) "project.json")) { $root = Join-Path "workspaces" $Proj }
 if (-not $root) { Write-Output ("no project (project.json not found) for: " + $Proj); exit 1 }
 
 $rel = $Path -replace '/','\'

@@ -22,7 +22,7 @@ if (-not $Path) { Write-Output "stage_and_build: missing -Path"; exit 1 }
 # Resolve project root.
 $root = $null
 if ((Test-Path $Proj) -and (Test-Path (Join-Path $Proj "response.rsp"))) { $root = $Proj }
-elseif (Test-Path (Join-Path (Join-Path "out" $Proj) "response.rsp")) { $root = Join-Path "out" $Proj }
+elseif (Test-Path (Join-Path (Join-Path "workspaces" $Proj) "response.rsp")) { $root = Join-Path "workspaces" $Proj }
 if (-not $root) { Write-Output ("no project (response.rsp not found) for: " + $Proj); exit 1 }
 
 # Guard the target path: must live under src\ and be a .cs file, no traversal.

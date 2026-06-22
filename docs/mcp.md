@@ -54,6 +54,6 @@ claude mcp add ratchet -- powershell -NoProfile -ExecutionPolicy Bypass -File C:
 ## Verifying the server
 
 `powershell -NoProfile -File mcp-smoke.ps1 <instance-dir>` drives the handshake over stdio and asserts
-the responses, model-free. (Note: this smoke is mid-update for the new instance layout - see the repo
-status.) The same trust rule as the console applies: a client calling `tools/call` runs the instance's
+the responses, model-free (initialize, tools/list, a real `csc_check` tool call, ping, and the
+unknown-tool error). The same trust rule as the console applies: a client calling `tools/call` runs the instance's
 declared scripts on your machine, so only serve instances you trust.

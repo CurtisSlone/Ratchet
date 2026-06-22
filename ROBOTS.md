@@ -54,8 +54,8 @@ powershell -ExecutionPolicy Bypass -File build.ps1 -Gui     # also the legacy ra
 .\ratchet.cmd validate-flow examples\dotnet                  # lint the example chains
 ```
 
-Only chat / generation / search need a running Ollama. Model-free smokes: `project-smoke.ps1`,
-`mcp-smoke.ps1` (both mid-update for the current layout).
+Only chat / generation / search need a running Ollama. Model-free smokes: `project-smoke.ps1` (the
+project tool chain) and `mcp-smoke.ps1` (the MCP handshake + a tool call) - both pass green.
 
 ## Hard constraints (these bite)
 

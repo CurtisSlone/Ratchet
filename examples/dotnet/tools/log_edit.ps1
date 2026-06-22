@@ -9,7 +9,7 @@ if (-not $Summary) { $Summary = "edited" }
 
 $root = $null
 if ((Test-Path $Proj) -and (Test-Path (Join-Path $Proj "PROJECT.md"))) { $root = $Proj }
-elseif (Test-Path (Join-Path (Join-Path "out" $Proj) "PROJECT.md")) { $root = Join-Path "out" $Proj }
+elseif (Test-Path (Join-Path (Join-Path "workspaces" $Proj) "PROJECT.md")) { $root = Join-Path "workspaces" $Proj }
 if (-not $root) { Write-Output ("no project (PROJECT.md not found) for: " + $Proj); exit 1 }
 
 $rel = ($Path -replace '\\','/')
