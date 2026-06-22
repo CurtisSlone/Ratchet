@@ -1,0 +1,249 @@
+// MCP server (stdio JSON-RPC) - lets a STRONG orchestrator (Claude) drive the same ICM the local
+// dispatcher drives. "Same server, two callers" from the DEVLOG.
+//
+// tools/list advertises the instance's declared tools (using each tool's authored inputSchema when
+// present). tools/call dispatches by kind: command/script tools run through ToolRunner; validate
+// runs the oracle; kb_answer/propose run through the shared Dispatcher. The model never picks a tool
+// here - Claude does.
+
+using System;
+using System.Collections.Generic;
+
+namespace Icm
+{
+    // Frontier-cost meter for the MCP boundary. When a STRONG model drives this ICM over stdio, its
+    // token cost is exactly what crosses this boundary: the requests it sends (its output) and the
+    // results it reads back (its input). We tally the chars each way and estimate tokens (chars/4,
+    // including JSON-RPC overhead). This measures the "drive" arm directly; the "direct" arm (the
+    // frontier writing the code itself) is what you compare against - most of host->driver below is
+    // returned artifact text, which is the bulk a direct frontier would have had to emit as output.
+    internal static class McpMeter
+    {
+        public static long InChars, OutChars;
+        public static int Requests, ToolCalls;
+        public static long InTokens { get { return (InChars + 3) / 4; } }
+        public static long OutTokens { get { return (OutChars + 3) / 4; } }
+        public static long DriveTokens { get { return InTokens + OutTokens; } }
+        public static string Report()
+        {
+            return "frontier boundary meter (this MCP session)\n" +
+                   "  driver -> host (requests in): " + Requests + " msgs, " + InChars + " chars (~" + InTokens + " tok)\n" +
+                   "  host -> driver (results out): " + OutChars + " chars (~" + OutTokens + " tok)\n" +
+                   "  tool calls: " + ToolCalls + "\n" +
+                   "  FRONTIER DRIVE COST (in + out): ~" + DriveTokens + " tok\n" +
+                   "note: ~tok = chars/4 incl. JSON-RPC overhead. This is the frontier's I/O to drive the\n" +
+                   "local model. host->driver is large mostly because tool results echo the generated code -\n" +
+                   "that returned code is roughly what a frontier writing it ITSELF would have had to emit.";
+        }
+    }
+
+    internal static class Mcp
+    {
+        private const string ProtocolVersion = "2025-11-25";  // advertised default
+        private const string HostVersion = "0.1.0";
+        private const int MaxProblemsShown = 40;
+
+        private static object InputSchema(Tool t)
+        {
+            object authored = t.InputSchema();
+            if (authored != null) return authored;
+            switch (t.Kind)
+            {
+                case Conventions.ToolKind.Validate:
+                    return Json.Schema(Json.Obj(
+                        "table", Json.Obj("type", "string", "description", "schema/table name to validate"),
+                        "tsv", Json.Obj("type", "string", "description", "table text to check (optional; else the file on disk)")),
+                        "table");
+                case Conventions.ToolKind.KbAnswer:
+                    return Json.Schema(Json.Obj("question", Json.StrProp()), "question");
+                case Conventions.ToolKind.Propose:
+                case Conventions.ToolKind.GenerateVerify:
+                    return Json.Schema(Json.Obj(
+                        "table", Json.Obj("type", "string", "description", "target table"),
+                        "request", Json.Obj("type", "string", "description", "what row to add")),
+                        "table", "request");
+                default:
+                    return Json.Obj("type", "object", "properties", new Dictionary<string, object>());
+            }
+        }
+
+        private static Dictionary<string, object> ToolsList(Instance icm)
+        {
+            var tools = new List<object>();
+            // Built-in enumeration tools: let the orchestrator browse the KB, then pull entries.
+            if (icm.Manifest != null)
+            {
+                tools.Add(Json.Obj("name", "catalog",
+                    "description", "List this instance's KB entries (id, group, summary). Optional filters: group, doc_type.",
+                    "inputSchema", Json.Schema(Json.Obj("group", Json.StrProp(), "doc_type", Json.StrProp()))));
+                tools.Add(Json.Obj("name", "read_entry",
+                    "description", "Read one KB entry's full text by id (routing metadata stripped).",
+                    "inputSchema", Json.Schema(Json.Obj("id", Json.StrProp()), "id")));
+            }
+            tools.Add(Json.Obj("name", "meter",
+                "description", "Report this MCP session's frontier I/O so far (tokens the driver has spent sending calls and reading results). Use it to measure the cost of driving the local model.",
+                "inputSchema", Json.Obj("type", "object", "properties", new Dictionary<string, object>())));
+            foreach (Tool t in icm.Tools())
+                tools.Add(Json.Obj("name", t.Name, "description", t.Description, "inputSchema", InputSchema(t)));
+            return Json.Obj("tools", tools.ToArray());
+        }
+
+        // Built-in (non-instance) tools the host serves directly: KB enumeration.
+        private static Dictionary<string, object> CallBuiltin(object id, Instance icm, string name, Dictionary<string, object> args)
+        {
+            try
+            {
+                if (name == "catalog")
+                {
+                    if (icm.Manifest == null) return ToolResult(id, "(no manifest.json)", false);
+                    string text = icm.Manifest.Catalog(Json.GetString(args, "group"), Json.GetString(args, "doc_type"));
+                    return ToolResult(id, text.Length > 0 ? text : "(no matching entries)", false);
+                }
+                if (name == "read_entry")
+                {
+                    string eid = Json.GetString(args, "id");
+                    if (eid == null) return ToolResult(id, "read_entry needs an 'id' argument", true);
+                    return ToolResult(id, icm.ReadEntry(eid), false);
+                }
+                if (name == "meter") return ToolResult(id, McpMeter.Report(), false);
+            }
+            catch (IcmError e) { return ToolResult(id, e.Message, true); }
+            return ToolResult(id, "unknown builtin: " + name, true);
+        }
+
+        private static Dictionary<string, object> Ok(object id, object result) { return Json.Obj("jsonrpc", "2.0", "id", id, "result", result); }
+        private static Dictionary<string, object> Err(object id, long code, string message) { return Json.Obj("jsonrpc", "2.0", "id", id, "error", Json.Obj("code", code, "message", message)); }
+
+        private static Dictionary<string, object> ToolResult(object id, string text, bool isError)
+        {
+            return Ok(id, Json.Obj("content", new object[] { Json.Obj("type", "text", "text", text) }, "isError", isError));
+        }
+
+        private static Dictionary<string, object> Handle(Instance icm, Dispatcher disp, Dictionary<string, object> msg)
+        {
+            string method = Json.GetStringOr(msg, "method", "");
+            object id; bool hasId = msg.TryGetValue("id", out id);
+
+            switch (method)
+            {
+                case "initialize":
+                {
+                    // Echo the client's requested protocol version when present (best compatibility);
+                    // fall back to our advertised default.
+                    string clientVer = Json.Pointer(msg, "/params/protocolVersion") as string;
+                    string ver = string.IsNullOrEmpty(clientVer) ? ProtocolVersion : clientVer;
+                    return Ok(id, Json.Obj(
+                        "protocolVersion", ver,
+                        "capabilities", Json.Obj("tools", Json.Obj("listChanged", false)),
+                        "serverInfo", Json.Obj("name", icm.Config.Name, "version", HostVersion)));
+                }
+                case "notifications/initialized":
+                    return null;
+                case "ping":
+                    return Ok(id, new Dictionary<string, object>());
+                case "tools/list":
+                    return Ok(id, ToolsList(icm));
+                case "tools/call":
+                {
+                    McpMeter.ToolCalls++;
+                    string name = Json.Pointer(msg, "/params/name") as string;
+                    if (name == null) name = "";
+                    Dictionary<string, object> args = Json.AsObject(Json.Pointer(msg, "/params/arguments"));
+                    if (args == null) args = new Dictionary<string, object>();
+                    if (name == "catalog" || name == "read_entry" || name == "meter") return CallBuiltin(id, icm, name, args);
+                    Tool tool = null;
+                    foreach (Tool t in icm.Tools()) if (t.Name == name) { tool = t; break; }
+                    if (tool == null) return Err(id, -32602, "Unknown tool: " + name);
+                    return CallTool(id, icm, disp, tool, args);
+                }
+                default:
+                    if (hasId) return Err(id, -32601, "Method not found: " + method);
+                    return null;
+            }
+        }
+
+        private static Dictionary<string, object> CallTool(object id, Instance icm, Dispatcher disp, Tool tool, Dictionary<string, object> args)
+        {
+            string text; bool isError;
+            try
+            {
+                switch (tool.Kind)
+                {
+                    case Conventions.ToolKind.Validate:
+                    {
+                        string table = Json.GetString(args, "table");
+                        if (table == null) { text = "validate needs a 'table' argument"; isError = true; break; }
+                        ValidateResult vr = disp.Validate(table, Json.GetString(args, "tsv"));
+                        text = vr.ToText(MaxProblemsShown); isError = !vr.Ok;
+                        break;
+                    }
+                    case Conventions.ToolKind.KbAnswer:
+                    {
+                        string q = Json.GetString(args, "question");
+                        if (q == null) q = Json.GetString(args, "query");
+                        if (q == null) { text = "kb_answer needs a 'question' argument"; isError = true; break; }
+                        text = disp.Ask(q); isError = false;
+                        break;
+                    }
+                    case Conventions.ToolKind.Propose:
+                    case Conventions.ToolKind.GenerateVerify:
+                    {
+                        string table = Json.GetString(args, "table");
+                        string request = Json.GetString(args, "request");
+                        if (request == null) request = Json.GetString(args, "task");
+                        if (table == null || request == null) { text = "propose needs 'table' and 'request' arguments"; isError = true; break; }
+                        ProposeResult pr = disp.ProposeRow(table, request);
+                        text = Dispatcher.FormatPropose(pr); isError = !pr.Ok;
+                        break;
+                    }
+                    default:
+                    {
+                        if (tool.CommandTokens() != null)
+                        {
+                            ToolRunResult rr = ToolRunner.Run(icm, tool, args);
+                            if (rr.Error != null) { text = rr.Error; isError = true; }
+                            else { text = rr.Output.Length > 0 ? rr.Output : "(no output)"; isError = !rr.Ok; }
+                        }
+                        else { text = "tool kind '" + tool.Kind + "' is not implemented in the host"; isError = true; }
+                        break;
+                    }
+                }
+            }
+            catch (IcmError e) { text = e.Message; isError = true; }
+            return ToolResult(id, text, isError);
+        }
+
+
+        // Serve MCP over stdio until stdin closes. stdout carries protocol only; logs go to stderr.
+        public static void Serve(Instance icm, string url)
+        {
+            var toolNames = new List<string>();
+            foreach (Tool t in icm.Tools()) toolNames.Add(t.Name);
+            Console.Error.WriteLine("[icm mcp] serving '" + icm.Config.Name + "' tools=[" + string.Join(", ", toolNames.ToArray()) + "] @ " + url);
+
+            var disp = new Dispatcher(icm, url, delegate(string s) { Console.Error.WriteLine("  - " + s); });
+
+            string line;
+            while ((line = Console.In.ReadLine()) != null)
+            {
+                line = line.Trim();
+                if (line.Length == 0) continue;
+                McpMeter.InChars += line.Length; McpMeter.Requests++;   // frontier's output to drive
+                Dictionary<string, object> msg;
+                try { msg = Json.AsObject(Json.Parse(line)); }
+                catch { continue; }
+                if (msg == null) continue;
+                Dictionary<string, object> resp = Handle(icm, disp, msg);
+                if (resp != null)
+                {
+                    string outStr = Json.Serialize(resp);
+                    McpMeter.OutChars += outStr.Length;                 // frontier's input from results
+                    Console.Out.WriteLine(outStr);
+                    Console.Out.Flush();
+                }
+            }
+            // On shutdown (stdin closed), report the session's frontier I/O to stderr.
+            Console.Error.WriteLine("[icm mcp] " + McpMeter.Report().Replace("\n", "\n[icm mcp] "));
+        }
+    }
+}

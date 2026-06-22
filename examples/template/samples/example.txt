@@ -1,0 +1,3 @@
+id	label	size
+1	alpha	10
+2	beta	50

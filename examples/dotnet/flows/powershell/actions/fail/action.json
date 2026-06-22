@@ -1,0 +1,1 @@
+{ "id": "powershell.fail", "kind": "exit", "outcome": "aborted: did not parse after one repair" }

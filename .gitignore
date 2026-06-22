@@ -1,0 +1,22 @@
+# Pre-built binaries (ratchet.exe, ratchet-gui.exe) ARE committed on purpose so downloaders can run
+# the host immediately via the launchers - do NOT ignore *.exe here.
+
+# Runtime / dev cruft
+ratchet-gui.error.log
+*.pdb
+_*
+
+# Per-instance runtime, all regenerated - never commit these (they appear inside instances/examples):
+#   .index/  the BM25 / embedding search cache (KbIndex)
+#   runs/    per-chain-run state (runs/<id>/step-NNN.json)
+.index/
+runs/
+
+# Per-session memory (written by the chat; not source).
+NOTES.md
+
+# OS / editor
+Thumbs.db
+.DS_Store
+*.user
+.vs/
