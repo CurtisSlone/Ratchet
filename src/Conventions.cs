@@ -75,8 +75,9 @@ namespace Icm
             public const string AiBranch = "ai_branch";  // slots -> prompt -> enum decision -> transitions
             public const string Summarizer = "summarizer"; // deterministic transform of prior outputs
             public const string Spec = "spec";           // parse + validate a spec input against the ratchet's vocabulary (oracle)
+            public const string ForEach = "foreach";     // run a sub-chain once per item in a list slot (fan-out)
             public const string Exit = "exit";           // terminal outcome
-            public static readonly string[] All = { Action, Generate, AiBranch, Summarizer, Spec, Exit };
+            public static readonly string[] All = { Action, Generate, AiBranch, Summarizer, Spec, ForEach, Exit };
         }
     }
 }

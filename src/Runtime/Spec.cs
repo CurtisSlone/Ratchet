@@ -26,7 +26,7 @@ namespace Icm
         public override string ToString() { return "line " + Line + ": " + Message; }
     }
 
-    internal class SpecField { public string Name; public string Type; public int Line; }
+    internal class SpecField { public string Name; public string Type; public string Value = ""; public int Line; }
     internal class SpecParam { public string Name; public string Type; }
     internal class SpecMethod { public string Name; public string Ret; public List<string> Mods = new List<string>(); public List<SpecParam> Params = new List<SpecParam>(); public string Body = ""; public int Line; }
     internal class SpecEdge { public string Type; public string Target; public int Line; }
@@ -100,7 +100,7 @@ namespace Icm
                     if (line[0] == '`') { if (curMethod == null) problems.Add(new SpecProblem(ln, "pseudocode body with no preceding method")); else curMethod.Body = Unquote(line); continue; }
                     string head, rest; SplitHead(line, out head, out rest);
                     if (head == "end") { doc.Nodes.Add(curNode); curNode = null; curMethod = null; }
-                    else if (head == "field") { string[] a = Words(rest); if (a.Length < 2) { problems.Add(new SpecProblem(ln, "field needs: field <name> <type>")); continue; } SpecField f = new SpecField(); f.Name = a[0]; f.Type = a[1]; f.Line = ln; curNode.Fields.Add(f); curMethod = null; }
+                    else if (head == "field") { int eq = rest.IndexOf('='); string decl = eq >= 0 ? rest.Substring(0, eq).Trim() : rest; string val = eq >= 0 ? rest.Substring(eq + 1).Trim() : ""; string[] a = Words(decl); if (a.Length < 2) { problems.Add(new SpecProblem(ln, "field needs: field <name> <type> [= <value>]")); continue; } SpecField f = new SpecField(); f.Name = a[0]; f.Type = a[1]; f.Value = Unquote(val); f.Line = ln; curNode.Fields.Add(f); curMethod = null; }
                     else if (head == "method") { string[] a = Words(rest); if (a.Length < 2) { problems.Add(new SpecProblem(ln, "method needs: method <name> <returntype> [modifiers]")); continue; } SpecMethod m = new SpecMethod(); m.Name = a[0]; m.Ret = a[1]; m.Line = ln; for (int k = 2; k < a.Length; k++) m.Mods.Add(a[k]); curNode.Methods.Add(m); curMethod = m; }
                     else if (head == "param") { string[] a = Words(rest); if (curMethod == null) { problems.Add(new SpecProblem(ln, "param with no preceding method")); continue; } if (a.Length < 2) { problems.Add(new SpecProblem(ln, "param needs: param <name> <type>")); continue; } SpecParam p = new SpecParam(); p.Name = a[0]; p.Type = a[1]; curMethod.Params.Add(p); }
                     else if (head == "edge") { string[] a = Words(rest); if (a.Length < 2) { problems.Add(new SpecProblem(ln, "edge needs: edge <type> <Target>")); continue; } SpecEdge e = new SpecEdge(); e.Type = a[0]; e.Target = a[1]; e.Line = ln; curNode.Edges.Add(e); curMethod = null; }
@@ -133,7 +133,11 @@ namespace Icm
                 if (!kindOk) problems.Add(new SpecProblem(n.Line, "unknown kind '" + n.Kind + "' (vocabulary: " + Join(v.Kinds.Keys) + ")"));
                 if (kindOk && !v.Kinds[n.Kind] && n.Methods.Count > 0) problems.Add(new SpecProblem(n.Line, "kind '" + n.Kind + "' carries no behavior; methods not allowed"));
 
-                foreach (SpecField f in n.Fields) if (!Resolves(f.Type, v, names)) problems.Add(new SpecProblem(f.Line, "unresolved type '" + f.Type + "' on field '" + f.Name + "'"));
+                foreach (SpecField f in n.Fields)
+                {
+                    if (!Resolves(f.Type, v, names)) problems.Add(new SpecProblem(f.Line, "unresolved type '" + f.Type + "' on field '" + f.Name + "'"));
+                    else if (f.Value.Length > 0 && !ValueOk(f.Type, f.Value)) problems.Add(new SpecProblem(f.Line, "value '" + f.Value + "' is not a valid " + f.Type));
+                }
                 foreach (SpecMethod m in n.Methods)
                 {
                     if (!Resolves(m.Ret, v, names)) problems.Add(new SpecProblem(m.Line, "unresolved return type '" + m.Ret + "' on method '" + m.Name + "'"));
@@ -157,7 +161,7 @@ namespace Icm
             var nodes = new List<object>();
             foreach (SpecNode n in d.Nodes)
             {
-                var fields = new List<object>(); foreach (SpecField f in n.Fields) fields.Add(Json.Obj("name", f.Name, "type", f.Type));
+                var fields = new List<object>(); foreach (SpecField f in n.Fields) fields.Add(Json.Obj("name", f.Name, "type", f.Type, "value", f.Value));
                 var methods = new List<object>();
                 foreach (SpecMethod m in n.Methods)
                 {
@@ -173,6 +177,13 @@ namespace Icm
         }
 
         private static bool Resolves(string type, Vocabulary v, HashSet<string> names) { return v.Types.Contains(type) || names.Contains(type); }
+        private static bool ValueOk(string type, string val)
+        {
+            if (type == "int" || type == "long") { long l; return long.TryParse(val, out l); }
+            if (type == "bool") { return val == "true" || val == "false"; }
+            if (type == "double") { double d; return double.TryParse(val, out d); }
+            return true; // string and node types accept any literal
+        }
         private static string KindOf(SpecDoc doc, string name) { foreach (SpecNode n in doc.Nodes) if (n.Name == name) return n.Kind; return null; }
         private static void SplitHead(string s, out string head, out string rest) { int sp = s.IndexOf(' '); if (sp < 0) { head = s; rest = ""; } else { head = s.Substring(0, sp); rest = s.Substring(sp + 1).Trim(); } }
         private static string[] Words(string s) { if (s.Length == 0) return new string[0]; return s.Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries); }

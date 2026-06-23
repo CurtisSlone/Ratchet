@@ -131,22 +131,57 @@ namespace Icm
                     Dictionary<string, string> slots = ResolveSlots(a, state);
                     string specText; if (!slots.TryGetValue("spec", out specText)) specText = "";
                     var problems = new List<SpecProblem>();
+                    SpecDoc sd = null;
                     try
                     {
                         string vp = Spec.VocabPath(icm, a.Vocab);
                         if (!System.IO.File.Exists(vp)) problems.Add(new SpecProblem(0, "no vocabulary at " + vp));
-                        else { Vocabulary vocab = Vocabulary.Load(vp); SpecDoc sd = Spec.Parse(specText, problems); Spec.Validate(sd, vocab, problems); }
+                        else { Vocabulary vocab = Vocabulary.Load(vp); sd = Spec.Parse(specText, problems); Spec.Validate(sd, vocab, problems); }
                     }
                     catch (Exception ex) { problems.Add(new SpecProblem(0, "spec engine error: " + ex.Message)); }
                     bool ok = problems.Count == 0;
-                    // On success the validated spec flows on (becomes the chain result); on failure the
-                    // problems flow to the repair node.
+                    // On success the validated AST flows on (the implement step's scaffold consumes it);
+                    // on failure the problems flow to the repair node.
                     string outp;
-                    if (ok) outp = specText;
+                    if (ok && sd != null) outp = Spec.ToJson(sd);
                     else { var sb = new StringBuilder(); foreach (SpecProblem pr in problems) { sb.Append(pr.ToString()); sb.Append("\n"); } outp = sb.ToString().TrimEnd(); }
                     state[a.Id] = outp; lastOutput = outp;
                     WriteState(runId, "step-" + n.ToString("000") + ".json", Json.Obj("node", a.Id, "kind", a.Kind, "ok", ok, "output", Cap(outp, 4000)));
                     step = ok ? a.OnSuccess : a.OnFailure;
+                }
+                else if (a.Kind == Conventions.ActionKind.ForEach)
+                {
+                    // Fan-out: run sub-chain `Flow` once per newline item in the `Over` slot (input = ItemInput, {{ item }}).
+                    Dictionary<string, string> slots = ResolveSlots(a, state);
+                    string listText = ""; if (a.Over != null) { string lv; if (slots.TryGetValue(a.Over, out lv)) listText = lv; }
+                    string[] rawItems = (listText != null ? listText : "").Replace("\r\n", "\n").Split('\n');
+                    string subDir = System.IO.Path.Combine(icm.FlowsDirAbs(), a.Flow != null ? a.Flow : "");
+                    string ws = state.ContainsKey("$workspace") ? state["$workspace"] : null;
+                    int okCount = 0, failCount = 0; var outSb = new StringBuilder();
+                    if (!Chain.IsChainDir(subDir)) { outSb.Append("no sub-flow '" + a.Flow + "'"); failCount++; }
+                    else
+                    {
+                        Chain sub = Chain.Load(subDir);
+                        foreach (string rawItem in rawItems)
+                        {
+                            string item = rawItem.Trim(); if (item.Length == 0) continue;
+                            var iv = new Dictionary<string, string>(); iv["item"] = item;
+                            string subInput = Render(a.ItemInput != null ? a.ItemInput : "{{ item }}", iv);
+                            status("foreach " + a.Id + ": " + item);
+                            ChainResult r;
+                            try { r = new ChainEngine(icm, disp, status).Run(sub, subInput, ws); }
+                            catch (Exception ex) { r = new ChainResult(); r.IsError = true; r.Outcome = ex.Message; }
+                            // A sub-chain that reaches its own fail exit returns IsError=false with an "aborted"
+                            // outcome - count that as a failure too, else a body that won't build passes silently.
+                            bool subFail = r.IsError || (r.Outcome != null && r.Outcome.StartsWith("aborted"));
+                            if (subFail) failCount++; else okCount++;
+                            outSb.Append(item + " -> " + r.Outcome + "\n");
+                        }
+                    }
+                    bool fok = failCount == 0;
+                    state[a.Id] = outSb.ToString().TrimEnd(); lastOutput = state[a.Id];
+                    WriteState(runId, "step-" + n.ToString("000") + ".json", Json.Obj("node", a.Id, "kind", a.Kind, "ok", fok, "output", Cap(state[a.Id], 4000)));
+                    step = fok ? a.OnSuccess : a.OnFailure;
                 }
                 else { res.IsError = true; res.Outcome = "aborted: unknown kind '" + a.Kind + "'"; break; }
             }

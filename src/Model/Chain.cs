@@ -76,6 +76,10 @@ namespace Icm
         public string Outcome;
         // spec: which vocabulary (domain) to validate against - spec/<vocab>.json, default spec/vocab.json
         public string Vocab;
+        // foreach: run sub-chain `Flow` once per newline item in slot `Over`, input = `ItemInput` ({{ item }})
+        public string Over;
+        public string Flow;
+        public string ItemInput;
         public Dictionary<string, object> Extra = new Dictionary<string, object>();
 
         public static ActionNode Parse(Dictionary<string, object> o)
@@ -92,6 +96,9 @@ namespace Icm
             a.OnFailure = Json.GetString(o, "on_failure");
             a.Prompt = Json.GetString(o, "prompt");
             a.Vocab = Json.GetString(o, "vocab");
+            a.Over = Json.GetString(o, "over");
+            a.Flow = Json.GetString(o, "flow");
+            a.ItemInput = Json.GetString(o, "input");
             a.OutputSchema = Json.GetObject(o, "output_schema");
             Dictionary<string, object> tr = Json.GetObject(o, "transitions");
             if (tr != null) foreach (var kv in tr) if (kv.Value != null) a.Transitions[kv.Key] = kv.Value.ToString();

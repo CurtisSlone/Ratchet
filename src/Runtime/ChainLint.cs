@@ -77,6 +77,13 @@ namespace Icm
                     if (string.IsNullOrEmpty(a.OnSuccess)) p.Add(w + ": spec needs 'on_success'");
                     if (string.IsNullOrEmpty(a.OnFailure)) p.Add(w + ": spec needs 'on_failure'");
                 }
+                else if (a.Kind == Conventions.ActionKind.ForEach)
+                {
+                    if (string.IsNullOrEmpty(a.Flow)) p.Add(w + ": foreach needs 'flow' (the sub-chain to run per item)");
+                    if (string.IsNullOrEmpty(a.Over)) p.Add(w + ": foreach needs 'over' (the slot holding the newline list)");
+                    if (string.IsNullOrEmpty(a.OnSuccess)) p.Add(w + ": foreach needs 'on_success'");
+                    if (string.IsNullOrEmpty(a.OnFailure)) p.Add(w + ": foreach needs 'on_failure'");
+                }
                 else if (a.Kind == Conventions.ActionKind.Exit)
                 {
                     if (string.IsNullOrEmpty(a.Outcome)) p.Add(w + ": exit needs 'outcome'");
