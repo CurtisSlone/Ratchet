@@ -74,6 +74,8 @@ namespace Icm
         public Dictionary<string, string> Transitions = new Dictionary<string, string>();
         // exit
         public string Outcome;
+        // spec: which vocabulary (domain) to validate against - spec/<vocab>.json, default spec/vocab.json
+        public string Vocab;
         public Dictionary<string, object> Extra = new Dictionary<string, object>();
 
         public static ActionNode Parse(Dictionary<string, object> o)
@@ -89,6 +91,7 @@ namespace Icm
             a.OnSuccess = Json.GetString(o, "on_success");
             a.OnFailure = Json.GetString(o, "on_failure");
             a.Prompt = Json.GetString(o, "prompt");
+            a.Vocab = Json.GetString(o, "vocab");
             a.OutputSchema = Json.GetObject(o, "output_schema");
             Dictionary<string, object> tr = Json.GetObject(o, "transitions");
             if (tr != null) foreach (var kv in tr) if (kv.Value != null) a.Transitions[kv.Key] = kv.Value.ToString();

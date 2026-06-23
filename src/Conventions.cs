@@ -74,8 +74,9 @@ namespace Icm
             public const string Generate = "generate";   // ICM: free-text generation via the generate seat
             public const string AiBranch = "ai_branch";  // slots -> prompt -> enum decision -> transitions
             public const string Summarizer = "summarizer"; // deterministic transform of prior outputs
+            public const string Spec = "spec";           // parse + validate a spec input against the ratchet's vocabulary (oracle)
             public const string Exit = "exit";           // terminal outcome
-            public static readonly string[] All = { Action, Generate, AiBranch, Summarizer, Exit };
+            public static readonly string[] All = { Action, Generate, AiBranch, Summarizer, Spec, Exit };
         }
     }
 }

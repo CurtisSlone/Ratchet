@@ -124,6 +124,30 @@ namespace Icm
                     WriteState(runId, "step-" + n.ToString("000") + ".json", Json.Obj("node", a.Id, "kind", a.Kind, "output", Cap(state[a.Id], 4000)));
                     step = a.OnSuccess;
                 }
+                else if (a.Kind == Conventions.ActionKind.Spec)
+                {
+                    // The spec oracle: parse + validate the bound spec text (slot 'spec') against the
+                    // ratchet's vocabulary. Output = the problems (empty when valid). Routes like an action.
+                    Dictionary<string, string> slots = ResolveSlots(a, state);
+                    string specText; if (!slots.TryGetValue("spec", out specText)) specText = "";
+                    var problems = new List<SpecProblem>();
+                    try
+                    {
+                        string vp = Spec.VocabPath(icm, a.Vocab);
+                        if (!System.IO.File.Exists(vp)) problems.Add(new SpecProblem(0, "no vocabulary at " + vp));
+                        else { Vocabulary vocab = Vocabulary.Load(vp); SpecDoc sd = Spec.Parse(specText, problems); Spec.Validate(sd, vocab, problems); }
+                    }
+                    catch (Exception ex) { problems.Add(new SpecProblem(0, "spec engine error: " + ex.Message)); }
+                    bool ok = problems.Count == 0;
+                    // On success the validated spec flows on (becomes the chain result); on failure the
+                    // problems flow to the repair node.
+                    string outp;
+                    if (ok) outp = specText;
+                    else { var sb = new StringBuilder(); foreach (SpecProblem pr in problems) { sb.Append(pr.ToString()); sb.Append("\n"); } outp = sb.ToString().TrimEnd(); }
+                    state[a.Id] = outp; lastOutput = outp;
+                    WriteState(runId, "step-" + n.ToString("000") + ".json", Json.Obj("node", a.Id, "kind", a.Kind, "ok", ok, "output", Cap(outp, 4000)));
+                    step = ok ? a.OnSuccess : a.OnFailure;
+                }
                 else { res.IsError = true; res.Outcome = "aborted: unknown kind '" + a.Kind + "'"; break; }
             }
 
