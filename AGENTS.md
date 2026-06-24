@@ -27,6 +27,8 @@ layout, the gotchas.
 |---|---|
 | The flow format / node kinds | [Author flows](docs/how-to/author-flows.md) |
 | The tool contract | [Author tools](docs/how-to/author-tools.md) |
+| The manifests (tools / flows / kb) | [Build the manifests](docs/how-to/build-manifests.md) |
+| How the knowledge base works / build one | [Knowledge bases](docs/how-to/knowledge-bases.md) |
 | The spec + compose format | [Compose from specs](docs/how-to/compose-from-specs.md) |
 | How and why it works | [Architecture](docs/concepts/architecture.md), [Context Binding](docs/concepts/context-binding.md), [Composition](docs/concepts/composition.md) |
 | Drive a ratchet (console / MCP) | [Use the console](docs/how-to/use-the-console.md), [Drive over MCP](docs/how-to/drive-over-mcp.md) |

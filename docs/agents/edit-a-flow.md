@@ -45,3 +45,5 @@ flows/<chain>/
 - An unbound `{{ x }}` renders empty - bind it in `inputs`.
 - Chains are UNROLLED (no loop-back edges); add explicit repair pairs to retry.
 - A `foreach` names a sub-flow - it must exist and pass `validate-flow` on its own.
+- After adding, renaming, or re-summarizing a flow, re-run `tools/index_flows.ps1` (if the ratchet has
+  it) to refresh `flows/manifest.json` - the quick-reference index agents read.

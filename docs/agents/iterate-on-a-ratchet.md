@@ -38,7 +38,8 @@ from the console with `/do <tool> [arg]`, or run `tools/<name>.ps1` from the rat
 | Drive the ratchet to build something (use it, not change it) | [Drive a ratchet](drive-a-ratchet.md) |
 
 Format references (the contracts): [Author flows](../how-to/author-flows.md),
-[Author tools](../how-to/author-tools.md), [Compose from specs](../how-to/compose-from-specs.md).
+[Author tools](../how-to/author-tools.md), [Build the manifests](../how-to/build-manifests.md),
+[Knowledge bases](../how-to/knowledge-bases.md), [Compose from specs](../how-to/compose-from-specs.md).
 
 ## Start a new ratchet
 

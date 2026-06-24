@@ -86,6 +86,8 @@ Ratchet actually looks like.
 - **How do I build my own ratchet?** See - [Build a ratchet](docs/how-to/build-a-ratchet.md).
 - **How do I write a flow?** See - [Author flows](docs/how-to/author-flows.md).
 - **How do I add a tool?** See - [Author tools](docs/how-to/author-tools.md).
+- **How do the manifests (tools / flows / kb) get built?** See - [Build the manifests](docs/how-to/build-manifests.md).
+- **How does the knowledge base work, and how do I build one?** See - [Knowledge bases](docs/how-to/knowledge-bases.md).
 - **How do I build a whole system from specs?** See - [Compose from specs](docs/how-to/compose-from-specs.md).
 - **Why is multi-file composition reliable (and where does it break)?** See - [Composition](docs/concepts/composition.md).
 - **How do I drive it from Claude over MCP?** See - [Drive over MCP](docs/how-to/drive-over-mcp.md).

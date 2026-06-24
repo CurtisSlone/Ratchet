@@ -77,7 +77,9 @@ One topic per markdown file, organized by subdir (`kb/reference/`, `kb/patterns/
 `ratchet index kb` to build `kb/manifest.json`, the routing index - title, summary, and keywords are
 extracted from each file's content **deterministically** (no LLM): the title is the first heading, the
 summary the first prose line, keywords the top terms. `README.md` folder guides are skipped. Chains
-ground on the kb via `search`/`ref` input bindings; `/search kb <query>` answers from it.
+ground on the kb via `search`/`ref` input bindings; `/search kb <query>` answers from it. Dedicated
+guides: [Knowledge bases](knowledge-bases.md) (the topic format, multiple libraries, building a new one)
+and [Build the manifests](build-manifests.md) (the tools / flows / kb manifests and how each is made).
 
 **Grounding mechanics.** Retrieval is **BM25 by default** (the floor, and the graceful fallback when
 no `embed` seat is set or Ollama is down); when an embedder is available it re-ranks the BM25

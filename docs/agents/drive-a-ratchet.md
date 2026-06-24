@@ -18,14 +18,16 @@ use the console - directly, or via the frontier-prompting hand-off.
 
 ## First: learn what THIS ratchet can do
 
-Never guess capabilities - read them:
+Never guess capabilities - read the plain files in the ratchet's dir:
 
+- `ratchet.json` - the config: model seats, knowledge bases, `requirements`.
+- `flows/manifest.json` - the flows index (id + summary): the fastest "what can it do". (`flows/<chain>/chain.json` has the full node graph if you need it.)
 - `tools/manifest.json` - the tools and their arguments.
-- `flows/*/chain.json` - the chains, by `summary`.
 - `kb/manifest.json` - what you can `/search`.
-- the ratchet's `Tests/` folder, if it has one - real transcripts of the exact command shapes.
+- the ratchet's `transcripts/` folder, if it has one - real end-to-end builds (prompt -> response per step).
 
-From a terminal, `ratchet open <ratchet>` summarizes the resolved model seats, tools, and Ollama URL.
+From a terminal, `ratchet open <ratchet>` summarizes the resolved model seats, tools, and Ollama URL;
+`ratchet flows <ratchet>` lists the chains with their summaries.
 
 ## The command vocabulary
 
