@@ -1,12 +1,14 @@
 # Building a ratchet
 
 A ratchet is data Ratchet loads - the host code never changes per domain. It is one
-`ratchet.json` config plus four buckets. Copy `examples\template` (a complete, self-documented skeleton
-with a working example chain) and replace its contents.
+`ratchet.json` config plus four buckets. Copy `RatchetBox/template` (a complete, self-documented
+skeleton: the lifecycle, composition, one-off, and answer flows working, with the domain-specific tools
+as `CHANGE_ME` stubs) and fill it in for your language.
 
-This page is the contract overview. For depth, see the technical guides:
-[authoring-flows.md](author-flows.md) (action chains), [authoring-tools.md](author-tools.md)
-(tools), and [context-binding.md](../concepts/context-binding.md) (how each step gets its scoped context).
+This page is the contract overview. For depth, see the technical guides: [Author flows](author-flows.md)
+(action chains), [Author tools](author-tools.md) (tools), [Context Binding](../concepts/context-binding.md)
+(how each step gets its scoped context), and [Compose from specs](compose-from-specs.md) (building whole
+systems - see the Composition section below).
 
 ```
 my-ratchet/
@@ -185,10 +187,45 @@ Lint chains with `ratchet validate-flow <dir>` (all) or `ratchet validate-flow <
 node kinds, required fields, unknown tool references, unreachable nodes, and that chain + tool names
 don't collide.
 
+## Composition: build a whole system from specs
+
+Beyond single files, your ratchet can build an **entire multi-file program from a directory of `.spec`
+files** in one run. This is a real capability you get for free by copying the `template` - it ships the
+`compose` and `add_unit` chains plus the generic `read_specs` and `plan_units` tools, all working. You
+write the specs (one structured prompt per unit); the model plans the build order, then generates each
+unit in dependency order, checking each against the project built so far.
+
+**What the template gives you, working:**
+
+- `compose` - read `<ws>/specs/*.spec` → plan the units (ordered, with shared contracts) → build each via
+  `add_unit` → build the whole project.
+- `add_unit` - generate one unit against the existing units' real API (`project_api`), build, repair, register.
+- `read_specs` + `plan_units` - generic; the spec-reading and worklist plumbing.
+
+**What you implement for your domain** (the template ships these as `CHANGE_ME` stubs):
+
+- the whole-project **oracle** - `build_project` (build everything) plus a stage tool (write a unit, then build);
+- **`project_api`** - emit the public API of the units already built, so a new unit calls them with the
+  exact names and signatures (this is the piece that makes multi-unit code hold together - see below);
+- **`new_project`** - scaffold a workspace;
+- the generate/fix **prompts** tuned to your language, and the `plan_units` path-map (which file each unit
+  lands in - a single source file, or a header+source pair like C++).
+
+**Why it works, and its limit.** Generating each unit against the *real* API of the units already built
+(via `project_api`) closes the **multi-reference frontier**: a unit that must call several others tends to
+drift on their exact signatures, and binding the real API stops that. But the build oracle checks that the
+code *links*, not that it does the right thing - a composed system can compile cleanly and still misbehave.
+That gap is closed by a human: review the result, then give one corrective prompt (`edit_file`). Compiler =
+contract oracle; author = behavior oracle.
+
+Full steps: [Compose from specs](compose-from-specs.md). The reasoning and the frontier:
+[Composition](../concepts/composition.md). Working end-to-end transcripts (a concurrent app composed from
+specs, including the author-correction pass) live in each reference ratchet's `transcripts/`.
+
 ## A note on workspaces
 
 `workspaces/` holds project workspaces - a per-project sandbox the project chains operate on. The
 active workspace (set with `/ws switch`) is injected into chains as `$workspace` and into chat as the
 session focus. The C# reference ratchet scaffolds a project there with `new_project`, builds it up
 with the `add_file` / `edit_file` chains (whole-project compile oracle + repair), and writes a
-SAC-safe launcher with `make_launcher`. See [console.md](use-the-console.md#the-project-lifecycle).
+SAC-safe launcher with `make_launcher`. See [Use the console](use-the-console.md#the-project-lifecycle).
