@@ -72,11 +72,6 @@ namespace Icm
                     if (!SetEq(keys, enumVals)) p.Add(w + ": transitions keys {" + Join(keys) + "} != output_schema.next.enum {" + Join(enumVals) + "}");
                     CheckPrompt(a, w, p);
                 }
-                else if (a.Kind == Conventions.ActionKind.Spec)
-                {
-                    if (string.IsNullOrEmpty(a.OnSuccess)) p.Add(w + ": spec needs 'on_success'");
-                    if (string.IsNullOrEmpty(a.OnFailure)) p.Add(w + ": spec needs 'on_failure'");
-                }
                 else if (a.Kind == Conventions.ActionKind.ForEach)
                 {
                     if (string.IsNullOrEmpty(a.Flow)) p.Add(w + ": foreach needs 'flow' (the sub-chain to run per item)");

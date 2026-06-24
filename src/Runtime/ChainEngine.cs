@@ -124,31 +124,6 @@ namespace Icm
                     WriteState(runId, "step-" + n.ToString("000") + ".json", Json.Obj("node", a.Id, "kind", a.Kind, "output", Cap(state[a.Id], 4000)));
                     step = a.OnSuccess;
                 }
-                else if (a.Kind == Conventions.ActionKind.Spec)
-                {
-                    // The spec oracle: parse + validate the bound spec text (slot 'spec') against the
-                    // ratchet's vocabulary. Output = the problems (empty when valid). Routes like an action.
-                    Dictionary<string, string> slots = ResolveSlots(a, state);
-                    string specText; if (!slots.TryGetValue("spec", out specText)) specText = "";
-                    var problems = new List<SpecProblem>();
-                    SpecDoc sd = null;
-                    try
-                    {
-                        string vp = Spec.VocabPath(icm, a.Vocab);
-                        if (!System.IO.File.Exists(vp)) problems.Add(new SpecProblem(0, "no vocabulary at " + vp));
-                        else { Vocabulary vocab = Vocabulary.Load(vp); sd = Spec.Parse(specText, problems); Spec.Validate(sd, vocab, problems); }
-                    }
-                    catch (Exception ex) { problems.Add(new SpecProblem(0, "spec engine error: " + ex.Message)); }
-                    bool ok = problems.Count == 0;
-                    // On success the validated AST flows on (the implement step's scaffold consumes it);
-                    // on failure the problems flow to the repair node.
-                    string outp;
-                    if (ok && sd != null) outp = Spec.ToJson(sd);
-                    else { var sb = new StringBuilder(); foreach (SpecProblem pr in problems) { sb.Append(pr.ToString()); sb.Append("\n"); } outp = sb.ToString().TrimEnd(); }
-                    state[a.Id] = outp; lastOutput = outp;
-                    WriteState(runId, "step-" + n.ToString("000") + ".json", Json.Obj("node", a.Id, "kind", a.Kind, "ok", ok, "output", Cap(outp, 4000)));
-                    step = ok ? a.OnSuccess : a.OnFailure;
-                }
                 else if (a.Kind == Conventions.ActionKind.ForEach)
                 {
                     // Fan-out: run sub-chain `Flow` once per newline item in the `Over` slot (input = ItemInput, {{ item }}).
@@ -187,7 +162,9 @@ namespace Icm
             }
 
             res.Steps = n;
-            if (string.IsNullOrEmpty(res.Outcome)) res.Outcome = string.IsNullOrEmpty(step) ? "ended (no exit)" : res.Outcome;
+            // Falling off the graph (a node routed to an empty/missing next without an exit node) is always a
+            // misconfiguration - mark it an error so foreach and callers don't count it as a silent success.
+            if (string.IsNullOrEmpty(step) && string.IsNullOrEmpty(res.Outcome)) { res.Outcome = "aborted: chain ended without reaching an exit node"; res.IsError = true; }
             res.Text = lastOutput.Length > 0 ? lastOutput : ("[chain " + c.Id + " -> " + res.Outcome + ", " + n + " step(s)]");
             WriteState(runId, "outcome.json", Json.Obj("outcome", res.Outcome, "steps", res.Steps, "error", res.IsError));
             return res;

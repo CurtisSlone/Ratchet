@@ -176,30 +176,6 @@ namespace Icm
             if (cr.IsError) Environment.Exit(2);
         }
 
-        private static void CmdSpecCheck(string dir, string specFile, bool emit, string vocab)
-        {
-            Instance icm = Instance.Open(dir);
-            string vp = Spec.VocabPath(icm, vocab);
-            if (!System.IO.File.Exists(vp)) throw new IcmError("no vocabulary at " + vp + " (declare spec/vocab.json in the ratchet)");
-            Vocabulary v = Vocabulary.Load(vp);
-            string text;
-            if (specFile != null) { if (!System.IO.File.Exists(specFile)) throw new IcmError("spec file not found: " + specFile); text = System.IO.File.ReadAllText(specFile); }
-            else text = Console.In.ReadToEnd();
-            var problems = new System.Collections.Generic.List<SpecProblem>();
-            SpecDoc doc = Spec.Parse(text, problems);
-            Spec.Validate(doc, v, problems);
-            if (problems.Count > 0)
-            {
-                foreach (SpecProblem p in problems) Console.Error.WriteLine("  " + p.ToString());
-                Console.Error.WriteLine(problems.Count + " problem(s)");
-                Environment.Exit(2);
-                return;
-            }
-            // Valid. spec-emit prints the AST (for a ratchet's mapping tool); spec-check just confirms.
-            if (emit) Console.WriteLine(Spec.ToJson(doc));
-            else Console.WriteLine("OK: spec valid - " + doc.Nodes.Count + " node(s), " + doc.Ops.Count + " op(s) (profile " + v.Profile + ")");
-        }
-
         private static string Arg(string[] args, int i) { return (i < args.Length) ? args[i] : null; }
 
         // The set of recognized verbs; anything else that names a directory is the `icm <dir>` shorthand.
@@ -208,7 +184,7 @@ namespace Icm
             switch (s)
             {
                 case "open": case "chat": case "mcp": case "flow": case "validate":
-                case "reindex": case "index": case "list": case "flows": case "validate-flow": case "doctor": case "spec-check": case "spec-emit": case "gen": case "selftest":
+                case "reindex": case "index": case "list": case "flows": case "validate-flow": case "doctor": case "gen": case "selftest":
                 case "help": case "-h": case "--help": return true;
                 default: return false;
             }
@@ -257,20 +233,6 @@ namespace Icm
                     Instance icm = Instance.Open(dir);
                     int code = Doctor.Run(icm, EffectiveUrl(icm));
                     if (code != 0) Environment.Exit(code);
-                    break;
-                }
-                case "spec-check":
-                {
-                    string dir = Arg(args, 1);
-                    if (dir == null) throw new IcmError("usage: ratchet spec-check <dir> [specfile] [vocab]");
-                    CmdSpecCheck(dir, Arg(args, 2), false, Arg(args, 3));
-                    break;
-                }
-                case "spec-emit":
-                {
-                    string dir = Arg(args, 1);
-                    if (dir == null) throw new IcmError("usage: ratchet spec-emit <dir> [specfile] [vocab]");
-                    CmdSpecCheck(dir, Arg(args, 2), true, Arg(args, 3));
                     break;
                 }
                 case "gen":
@@ -392,8 +354,6 @@ namespace Icm
             "  icm validate <dir> <table>      run the oracle on a table\n" +
             "  icm validate-flow <dir> [name]  lint action chain(s): bad node kinds, missing fields, unknown tools\n" +
             "  icm doctor <dir>                preflight: validate the tools the ratchet declares it needs\n" +
-            "  icm spec-check <dir> [file]     parse + validate a spec against the ratchet's spec/vocab.json (stdin if no file)\n" +
-            "  icm spec-emit <dir> [file]      validate, then print the spec AST as JSON (for a ratchet's mapping tool)\n" +
             "  icm reindex <dir>               regenerate manifest.json from files' <!--icm--> blocks\n" +
             "  icm index <kb-dir>              build manifest.json for a knowledge library from file content\n" +
             "  icm list  <dir> [--group G] [--type T] [--json]   enumerate the KB catalog\n" +
