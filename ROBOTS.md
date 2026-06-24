@@ -146,7 +146,8 @@ flows/<chain>/
 
 **Node kinds:** `action` (run a tool, route on exit code via `on_success`/`on_failure`), `generate`
 (free text from `prompt.md`), `ai_branch` (slots -> prompt -> enum decision -> `transitions`),
-`summarizer` (deterministic transform), `exit` (terminal `outcome`).
+`summarizer` (deterministic transform), `foreach` (run a sub-chain per item in a newline list slot - the
+fan-out primitive, e.g. compose's per-unit build), `exit` (terminal `outcome`).
 
 **Context Binding** - a node sees ONLY its declared `inputs`, each into a named `as` slot, capped with
 `max_chars`. Sources: `from` (a prior node, or `$input` / `$workspace` / a chain-declared `inputs`

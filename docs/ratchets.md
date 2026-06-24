@@ -150,6 +150,8 @@ written to `runs/<id>/` (`meta.json`, one `step-NNN.json` per node, `outcome.jso
 - **`generate`** - free text via the generate seat, from a `prompt.md`. The ICM proposer.
 - **`ai_branch`** - fill slots, prompt the model for an enum decision, and route via `transitions`.
 - **`summarizer`** - a deterministic transform of prior outputs.
+- **`foreach`** - run a sub-chain once per item in a newline list slot (sequential, ordered, sharing the
+  workspace); succeeds only if every item does. The fan-out primitive (e.g. compose's per-unit build).
 - **`exit`** - a terminal `outcome` (e.g. `success`, or an `aborted: ...` reason).
 
 ### Context binding (input slots)

@@ -111,6 +111,20 @@ options.
 Fold prior outputs into a named slot without a model call (e.g. concatenate, trim). Use when a later
 node needs a derived value, not a fresh generation.
 
+### `foreach` - fan out a sub-chain over a list
+Run another flow once per line in a slot, **in order**, each sub-run inheriting the active `$workspace`.
+`over` names the slot holding the newline list, `flow` the sub-chain id, `input` the per-item template
+(`{{ item }}` is the line). Routes `on_success` only if **every** item's sub-chain reaches a non-aborted
+exit. The list usually comes from a prior `generate` (the model plans the items) or an `action` (a tool
+enumerates them): the model picks the breadth, the engine applies the same sub-chain to each. Because it
+is sequential and each sub-run sees the workspace left by the prior ones, it composes ordered,
+context-accumulating builds.
+```jsonc
+{ "id": "compose.fan", "kind": "foreach", "over": "units", "flow": "add_unit", "input": "{{ item }}",
+  "inputs": [ { "from": "compose.worklist", "as": "units" } ],
+  "on_success": "compose.build", "on_failure": "compose.fail" }
+```
+
 ### `exit` - terminate
 ```jsonc
 { "id": "edit_file.done", "kind": "exit", "outcome": "success" }
