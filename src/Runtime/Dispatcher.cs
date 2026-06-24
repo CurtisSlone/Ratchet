@@ -329,6 +329,16 @@ namespace Icm
                         r.Text = sb.ToString().TrimEnd();
                         break;
                     }
+                    case "tools":
+                    {
+                        var sb = new StringBuilder();
+                        sb.Append("Declared tools (run with /do <name> [arg]):\n");
+                        List<Tool> tl = icm.Tools();
+                        if (tl.Count == 0) sb.Append("  (none in tools/manifest.json)");
+                        else foreach (Tool t in tl) sb.Append("  " + t.Name.PadRight(18) + " " + t.Description + "\n");
+                        r.Text = sb.ToString().TrimEnd();
+                        break;
+                    }
                     case "note":
                         if (rest.Length == 0) { Usage(r, "/note <text>"); break; }
                         AppendNote(rest); r.Text = "noted."; break;
@@ -1029,7 +1039,8 @@ namespace Icm
             sb.Append("  /do <tool|command>       run a declared tool, or a shell command you type\n");
             sb.Append("  /propose <description>   propose a table row, oracle-validated\n");
             sb.Append("  /ws switch|create <name> switch or create the active workspace\n");
-            sb.Append("  /flows                   list the instance's flows\n");
+            sb.Append("  /flows                   list the instance's flows (id + summary)\n");
+            sb.Append("  /tools                   list the instance's declared tools (name + description)\n");
             sb.Append("  /note <text>  /notes     add to / show NOTES.md (session memory)\n");
             sb.Append("  /clear   /help   /quit\n");
             sb.Append("\nAppend ' > path' to save a command's output to a file.\n");

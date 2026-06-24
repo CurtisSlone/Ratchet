@@ -25,7 +25,8 @@ gate keeps only a confident, on-list match and you confirm before it runs.
 | `/do <shell command>` | run a PowerShell command you paste; its output enters the session context |
 | `/propose <description>` | propose a table row; the oracle gates it, with bounded repair |
 | `/ws switch\|create <name>` | switch to / create the active workspace (the session focus) |
-| `/flows` | list the ratchet's action chains (what `/route` can match) |
+| `/flows` | list the ratchet's action chains (id + summary; what `/route` can match) |
+| `/tools` | list the ratchet's declared tools (name + description; what `/do` can run) |
 | `/note <text>` / `/notes` | append to / read session memory (`NOTES.md`) |
 | `/help` | list commands; `/clear` reset history; `/quit` exit |
 

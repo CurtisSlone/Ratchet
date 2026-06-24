@@ -27,7 +27,8 @@ Never guess capabilities - read the plain files in the ratchet's dir:
 - the ratchet's `transcripts/` folder, if it has one - real end-to-end builds (prompt -> response per step).
 
 From a terminal, `ratchet open <ratchet>` summarizes the resolved model seats, tools, and Ollama URL;
-`ratchet flows <ratchet>` lists the chains with their summaries.
+`ratchet flows <ratchet>` lists the chains with their summaries and `ratchet tools <ratchet>` lists the
+declared tools. In the console, `/flows` and `/tools` print the same readouts.
 
 ## The command vocabulary
 

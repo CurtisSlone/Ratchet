@@ -184,7 +184,7 @@ namespace Icm
             switch (s)
             {
                 case "open": case "chat": case "mcp": case "flow": case "validate":
-                case "reindex": case "index": case "list": case "flows": case "validate-flow": case "doctor": case "gen": case "selftest":
+                case "reindex": case "index": case "list": case "flows": case "tools": case "validate-flow": case "doctor": case "gen": case "selftest":
                 case "help": case "-h": case "--help": return true;
                 default: return false;
             }
@@ -314,6 +314,16 @@ namespace Icm
                     Console.WriteLine("  plain text         ungrounded chat");
                     Console.WriteLine("  /search [src] <q>  grounded answer from a knowledge base");
                     Console.WriteLine("  /route <request>   let the model pick a flow");
+                    break;
+                }
+                case "tools":
+                {
+                    string dir = Arg(args, 1);
+                    if (dir == null) throw new IcmError("usage: icm tools <dir>");
+                    Instance icmT = Instance.Open(dir);
+                    Console.WriteLine("declared tools (run with /do <name> [arg]):");
+                    foreach (Tool t in icmT.Tools())
+                        Console.WriteLine("  " + t.Name.PadRight(18) + " " + t.Description);
                     break;
                 }
                 case "list":
