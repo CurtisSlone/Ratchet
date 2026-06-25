@@ -35,4 +35,4 @@ prompt: `ratchet flow <ratchet> edit_file --ws <proj> "<path> <what to fix>"`. Y
 ## Per-domain pieces (only if you are authoring the ratchet, not just using it)
 
 `build_project` (the oracle), `project_api` (the existing-units API), `plan_units` (the file-path map).
-The `template` ships them as stubs; `RatchetBox/dotnet4-x` and `RatchetBox/cpp` implement them.
+The `template` ships them as stubs; `RatchetBox/Windows/dotnet4-x` and `RatchetBox/Windows/cpp` implement them.

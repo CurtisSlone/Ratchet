@@ -34,10 +34,14 @@ ratchet flow <ratchet> <chain> ...        # exercise a chain whose action node c
 
 Or call it directly in the console: `/do <name> [arg]`. Or run `tools/<name>.ps1` from the ratchet root.
 
-## Gotchas (PowerShell 5.1)
+## Gotchas (PowerShell tools on Windows)
+
+These apply to `.ps1` tools (the Windows ratchets); POSIX tools (`.sh`, `.py`) avoid them.
 
 - Do NOT pipe a native exe's stderr through `2>&1` under `ErrorActionPreference=Stop` - it wraps stderr
   as a terminating error.
 - `>` writes UTF-16; when another tool will read the file, capture the output and
   `Set-Content -Encoding ascii`.
 - A `[type]`-constrained param silently coerces later same-named assignments - rename if you reassign.
+- The host writes a tool's `stdin` payload as raw UTF-8 (no BOM), so the leading-BOM strip the older C#
+  host required is unnecessary now (harmless if a ported `.ps1` still does it).

@@ -5,10 +5,11 @@ running an instance you did not write.
 
 ## The one rule: only open instances you trust
 
-An instance's `tools/manifest.json` declares **command/script tools** - PowerShell scripts and
-external programs the host runs (with the instance folder as the working directory). Opening such an
-instance and using a capability that invokes a tool **runs that code on your machine**. This is by
-design - it is how the host does real work - but it means:
+An instance's `tools/manifest.json` declares **command/script tools** - scripts and external programs
+the host runs (with the instance folder as the working directory; a bare script is dispatched to its
+interpreter by host OS - PowerShell on Windows, bash on Linux/macOS). Opening such an instance and using
+a capability that invokes a tool **runs that code on your machine**. This is by design - it is how the
+host does real work - but it means:
 
 > Treat opening an instance like running its scripts, because that is what it is. Only open instances
 > from a source you trust, and skim `ratchet.json` + the `tools/` folder first.
@@ -40,19 +41,24 @@ The model fills arguments into authored commands; it cannot invent new ones.
 
 ## `/do` runs what you type
 
-`/do <command>` executes a PowerShell command **you paste**, with your privileges. This is
-operator-authorized arbitrary execution: the model never composes or triggers a `/do` command, and its
-output is captured into the session for you to read - it is not handed back to the model to act on.
-Only paste commands you understand, same as any shell.
+`/do <command>` executes a command **you paste** through the host's shell (PowerShell on Windows,
+bash/sh on Linux/macOS), with your privileges. This is operator-authorized arbitrary execution: the
+model never composes or triggers a `/do` command, and its output is captured into the session for you
+to read - it is not handed back to the model to act on. Only paste commands you understand, same as any
+shell.
 
-## Smart App Control and built artifacts
+## Windows: Smart App Control and built artifacts
 
-The committed `ratchet.exe` is unsigned, so Smart App Control blocks running it
-directly. The `.cmd` / `run-cli.ps1` launchers load the program's bytes in-memory inside the
-Microsoft-signed PowerShell, which SAC permits. Likewise, a C# instance builds **unsigned** app
-executables; the `make_launcher` tool writes a `.cmd` that runs them the same in-memory way. This is
-your own local code on your own machine - use the launchers; do not disable SAC or weaken
-code-integrity policy to run it. SAC still guards everything else.
+On Windows the committed binaries are unsigned. The cross-platform Go build
+(`bins\windows-amd64\ratchet.exe`) is a **native** exe - run it directly; if Smart App Control blocks
+it, code-signing (or a SAC exception) is the fix. The legacy C# build is a **managed .NET assembly**
+(`bins\csharp\ratchet.exe`), which the `run-cli.ps1` / `ratchet.cmd` launchers load in-memory inside
+the Microsoft-signed PowerShell - SAC permits that, so it is the SAC-friendly Windows option (see
+[Build the legacy C# host](docs/how-to/build-csharp-host.md)). Likewise, the `Windows/dotnet4-x`
+ratchet builds **unsigned** app executables; its `make_launcher` tool writes a `.cmd` that runs them
+the same in-memory way. This is your own local code on your own machine - do not disable SAC or weaken
+code-integrity policy. (On Linux/macOS there is no such gate - the binary is a normal executable;
+`chmod +x` if needed.)
 
 ## Ollama
 
@@ -61,11 +67,12 @@ at a remote host sends prompts unencrypted - only do so on a trusted network.
 
 ## Supply chain
 
-The host builds with the in-box .NET Framework C# compiler - **no SDK, NuGet, or MSBuild** - so there
-is no package-manager dependency to compromise. Its only runtime dependencies are the .NET Framework
-(already on Windows) and a local Ollama. Prebuilt binaries are committed for convenience; you can
-rebuild them from source with `build.ps1` and verify the deterministic core with
-`.\ratchet.cmd selftest`.
+The host is a single static Go binary built **only from the Go standard library** - it declares no
+third-party modules (an empty dependency graph), so there is no package-manager dependency to
+compromise. It has no runtime dependency but a local Ollama; the binary itself needs no runtime.
+Prebuilt binaries are committed for convenience; you can rebuild them from source with `make build`
+(needs the Go toolchain) and verify the deterministic core with `ratchet selftest`. The original C#
+host is kept under `csharp_src/` for reference.
 
 ## Reporting a vulnerability
 

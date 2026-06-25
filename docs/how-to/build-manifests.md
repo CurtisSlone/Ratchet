@@ -35,7 +35,7 @@ after adding, renaming, or re-summarizing a flow:
 tools/index_flows.ps1          # run from the ratchet root -> writes flows/manifest.json
 ```
 
-If a ratchet does not ship `index_flows.ps1`, copy it from `RatchetBox/dotnet4-x/tools/`.
+If a ratchet does not ship `index_flows.ps1`, copy it from `RatchetBox/Windows/dotnet4-x/tools/`.
 
 ## kb/<lib>/manifest.json (generated)
 

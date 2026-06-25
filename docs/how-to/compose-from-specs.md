@@ -56,7 +56,7 @@ Because units are built in dependency order, each one is checked against real, c
   together.
 - Every other unit is a component file under `src/`, in its `module` folder (default `core`).
 - One file per unit by default. For a header+source language (C++), a unit is a declaration + a definition
-  emitted together; see `RatchetBox/cpp`.
+  emitted together; see `RatchetBox/Windows/cpp`.
 
 ## What you implement per domain
 
@@ -67,7 +67,7 @@ The pipeline shape is generic; three pieces are language-specific (the `template
   This is what keeps multi-unit code consistent - see [Composition](../concepts/composition.md).
 - **`plan_units`** - map a unit to its file path (set your source extension and entry file).
 
-Working references that implement all three: `RatchetBox/dotnet4-x` (C#) and `RatchetBox/cpp` (C++).
+Working references that implement all three: `RatchetBox/Windows/dotnet4-x` (C#) and `RatchetBox/Windows/cpp` (C++).
 
 ## See it work
 

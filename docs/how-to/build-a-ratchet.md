@@ -1,7 +1,7 @@
 # Building a ratchet
 
 A ratchet is data Ratchet loads - the host code never changes per domain. It is one
-`ratchet.json` config plus four buckets. Copy `RatchetBox/template` (a complete, self-documented
+`ratchet.json` config plus four buckets. Copy `RatchetBox/Windows/template` (a complete, self-documented
 skeleton: the lifecycle, composition, one-off, and answer flows working, with the domain-specific tools
 as `CHANGE_ME` stubs) and fill it in for your language.
 

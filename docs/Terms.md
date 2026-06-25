@@ -1,6 +1,6 @@
 # Vocabulary
 
-- **Ratchet** - the engine (`ratchet.exe`). It runs ratchets.
+- **Ratchet** - the engine (`ratchet`). It runs ratchets.
 - **a ratchet** - a self-contained unit you point the engine at: a directory with `ratchet.json`
   plus `flows/`, `tools/`, `kb/`. Run it with `ratchet <dir>`. Ready-made ratchets live in the
   companion [RatchetBox](https://github.com/CurtisSlone/RatchetBox) repo.

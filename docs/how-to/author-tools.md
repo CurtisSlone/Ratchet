@@ -89,7 +89,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }            # non-zero -> on_failure (the rep
 
 ## Patterns from the C# reference ratchet
 
-`RatchetBox/dotnet4-x/tools/` shows the common shapes:
+`RatchetBox/Windows/dotnet4-x/tools/` shows the common shapes:
 
 - **Oracles** (`csc_check`, `ps_parse`, `csc_winforms`) - read source on stdin, exit with the
   compile/parse verdict. These are what `action` nodes call.

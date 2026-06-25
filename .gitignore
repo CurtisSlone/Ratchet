@@ -19,3 +19,13 @@ Thumbs.db
 .DS_Store
 *.user
 .vs/
+PLANS.md
+.claude/
+
+# Cross-compiled binaries under bins/<os>-<arch>/ ARE committed on purpose, so anyone who clones can
+# run the host immediately for their platform (bins/csharp/ holds the legacy C# build). Do NOT ignore
+# them here. Only ignore stray Go build/test artifacts left at the repo root or in package dirs:
+/ratchet
+/ratchet.test
+*.test
+*.out

@@ -1,9 +1,9 @@
 # AGENTS.md - orientation + routing for AI agents
 
-You're an AI agent (any model) working on or with **Ratchet** (this repo = the host engine `ratchet.exe`).
-**The one rule:** keep domain logic in a *ratchet*, never in the engine (`src/`) - a new capability is a
-new flow or tool, not a host change. Now route from the tables; the orientation is below. Humans:
-[README.md](README.md).
+You're an AI agent (any model) working on or with **Ratchet** (this repo = the host engine `ratchet`,
+a cross-platform Go binary). **The one rule:** keep domain logic in a *ratchet*, never in the engine
+(`go_src/`) - a new capability is a new flow or tool, not a host change. Now route from the tables; the
+orientation is below. Humans: [README.md](README.md).
 
 ## Route by what you're doing
 
@@ -18,8 +18,8 @@ new flow or tool, not a host change. Now route from the tables; the orientation 
 | Start a new ratchet | [Build a ratchet](docs/how-to/build-a-ratchet.md) |
 | Drive a ratchet to build something (you are the operator) | [Drive a ratchet](docs/agents/drive-a-ratchet.md) |
 
-**Editing the host engine** (`src/`): [Work on the host](docs/how-to/work-on-the-host.md) - build, verify,
-layout, the gotchas.
+**Editing the host engine** (`go_src/`): [Work on the host](docs/how-to/work-on-the-host.md) - build,
+verify, layout, the gotchas.
 
 **Reference and concepts:**
 
@@ -37,7 +37,8 @@ layout, the gotchas.
 
 ## What Ratchet is (the 5 Ws, short)
 
-A Windows-native host that runs a small **local** model as a *constrained proposer*: the model proposes
+A cross-platform host (a single static Go binary) that runs a small **local** model as a *constrained
+proposer*: the model proposes
 into a fixed chain of steps; a deterministic **Oracle** (a compiler, a parser, a table validator) accepts
 or rejects each step; the chain advances only on a pass. The host is a domain-agnostic harness - all
 domain logic lives in the **ratchets** it loads. Use it for bounded, *verifiable* generation, not
@@ -55,18 +56,23 @@ Lineage: structure-as-architecture is from ICM; RAG is a technique; the action-c
 model is Ratchet's own. Don't call Ratchet "just ICM." Why the boundary matters:
 [Architecture](docs/concepts/architecture.md).
 
-## Before you touch `src/`
+## Before you touch `go_src/`
 
 Build and verify after any host change - full detail, repo layout, and the constraints that bite are in
 [Work on the host](docs/how-to/work-on-the-host.md):
 
 ```
-powershell -ExecutionPolicy Bypass -File build.ps1     # -> ratchet.exe
-.\ratchet.cmd selftest                                 # deterministic core, model-free
+make build        # -> bins/<os>-<arch>/ratchet   (cd go_src && go build under the hood)
+make test         # the Go unit tests
+ratchet selftest  # the deterministic core, model-free (also `make smoke`)
 ```
 
-These **bite**: **C# 5 only** (in-box pre-Roslyn csc - no `$"..."`, `?.`, expression-bodied members,
-tuples); **SAC blocks the bare exe** - always run `.\ratchet.cmd ...`; one flat `namespace Icm`.
+These **bite**: keep it **pure Go, `CGO_ENABLED=0`** so it cross-compiles to every target with no C
+toolchains - do not add a cgo dependency. Go forbids import cycles (the old C# build was one flat
+namespace), so shared types live in `internal/model` and constants in `internal/conventions`; leaf
+packages depend inward. Run `gofmt`/`go vet` clean. The original C# host is kept under `csharp_src/`
+for reference and as the SAC-friendly Windows build; do not edit it for new behavior. See
+[Build the legacy C# host](docs/how-to/build-csharp-host.md).
 
 ## Style
 

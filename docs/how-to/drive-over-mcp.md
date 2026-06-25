@@ -33,10 +33,30 @@ tool; the host executes it deterministically and the oracle still gates structur
 
 ## Connecting a client
 
-Smart App Control blocks the bare `.exe`, so point the client at the in-memory launcher
-`run-cli.ps1`, not `ratchet.exe`. Use absolute paths.
+Point the client at the `ratchet` binary with `mcp <ratchet-dir>` (use absolute paths). On Linux/macOS
+run the binary directly. On Windows, Smart App Control blocks the unsigned bare `.exe`, so point the
+client at the in-memory launcher (`scripts\windows\run-cli.ps1` via PowerShell) instead.
 
-**Claude Desktop** (`claude_desktop_config.json`):
+**Claude Code (Linux/macOS):**
+
+```
+claude mcp add ratchet -- /path/to/Ratchet/bins/linux-amd64/ratchet mcp /path/to/RatchetBox/Linux/go
+```
+
+**Claude Desktop (Linux/macOS)** (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "ratchet": {
+      "command": "/path/to/Ratchet/bins/linux-amd64/ratchet",
+      "args": ["mcp", "/path/to/RatchetBox/Linux/go"]
+    }
+  }
+}
+```
+
+**Windows** (SAC -> the in-memory launcher):
 
 ```json
 {
@@ -44,22 +64,17 @@ Smart App Control blocks the bare `.exe`, so point the client at the in-memory l
     "ratchet": {
       "command": "powershell",
       "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-               "C:\\path\\to\\ratchet\\run-cli.ps1", "mcp",
-               "C:\\path\\to\\a-ratchet"]
+               "C:\\path\\to\\Ratchet\\scripts\\windows\\run-cli.ps1", "mcp",
+               "C:\\path\\to\\RatchetBox\\Windows\\dotnet4-x"]
     }
   }
 }
 ```
 
-**Claude Code:**
-
-```
-claude mcp add ratchet -- powershell -NoProfile -ExecutionPolicy Bypass -File C:\path\to\ratchet\run-cli.ps1 mcp C:\path\to\a-ratchet
-```
-
 ## Verifying the server
 
-`powershell -NoProfile -File mcp-smoke.ps1 <ratchet-dir>` drives the handshake over stdio and asserts
-the responses, model-free (initialize, tools/list, a real `csc_check` tool call, ping, and the
-unknown-tool error). The same trust rule as the console applies: a client calling `tools/call` runs the ratchet's
-declared scripts on your machine, so only serve ratchets you trust.
+On Linux/macOS, `scripts/linux/mcp-smoke.sh <ratchet-dir>` drives the handshake over stdio and asserts
+the responses, model-free (initialize, tools/list, a real `go_build` tool call valid + invalid, ping,
+and the unknown-tool error). On Windows, `scripts\windows\mcp-smoke.ps1 <ratchet-dir>` does the same
+against `csc_check`. The same trust rule as the console applies: a client calling `tools/call` runs the
+ratchet's declared scripts on your machine, so only serve ratchets you trust.

@@ -139,33 +139,41 @@ the **Oracle** (deterministic propose-then-verify with bounded repair), and the 
 gating policy (what to inject, and where). The synthesis - a local model as a constrained proposer
 inside a static, oracle-gated control graph - is the system.
 
-## src/ layout
+## Source layout
 
-One flat `namespace Icm`; folders are organizational.
+The engine is Go (module `github.com/CurtisSlone/Ratchet`, rooted in `go_src/`). `internal/` is Go's
+enforced-private boundary - these packages are the engine, not a public API.
 
 ```
-Conventions.cs   the ratchet contract in one place: file/dir names + intent/tool/action-kind constants
-Json.cs          JSON parse/serialize + navigation + small object/schema builders
-Model/           pure data: Config, Manifest, TableSchema, Chain, FlowInfo, Results
-Runtime/         the engine: Instance (sandboxed IO), Oracle, Tsv, ToolRunner, Ollama, Dispatcher,
-                 ChainEngine, ChainLint, KbIndex, Indexer, Search (BM25 core), Embedder
-Server/Mcp.cs    the MCP server (tools/list + tools/call)
-Cli/             the console executable: Program, ConsoleChat, SelfTest
+cmd/ratchet/         the entrypoint
+internal/conventions the ratchet contract: file/dir names + intent/tool/action-kind constants
+internal/jsonx       dynamic-JSON helpers (Ollama bodies, schemas, JSON-RPC); typed structs elsewhere
+internal/model       pure data: Manifest, TableSchema, Chain, FlowInfo, Results (Config in internal/config)
+internal/instance    the sandboxed instance (path-escape guard); internal/config loads ratchet.json
+internal/oracle      the oracle mechanism: the TSV validator + namespace check + Tsv
+internal/chain       ChainEngine (run loop) + ChainLint; the Generator interface
+internal/ollama      generate / stream / embed / tags, the token meter, the cancel handle
+internal/search      Search (BM25 core), KbIndex, Indexer, Embedder
+internal/tool        ToolRunner (platform-aware exec) + Doctor
+internal/dispatch    the dispatcher (slash commands, router gate, propose/repair)
+internal/mcp         the MCP server (tools/list + tools/call)
+internal/cli         the console: verb handlers, the ConsoleChat REPL, the runtime selftest
 ```
 
 The host is a **domain-agnostic harness**: it contains the chain engine, the dispatcher, the oracle
 *mechanism* (the TSV validator), search/embedder mechanics, and the generic verbs. It hardcodes no
-specific flow, tool, or knowledge - all of that lives in ratchets.
+specific flow, tool, or knowledge - all of that lives in ratchets. (The original C# implementation is
+preserved under `csharp_src/` for reference.)
 
 ## Build
 
 ```
-powershell -ExecutionPolicy Bypass -File build.ps1          # ratchet.exe
+make build          # -> bins/<os>-<arch>/ratchet
+make cross          # every shipped target at once
 ```
 
-`build.ps1` calls the in-box .NET Framework `csc.exe` (pre-Roslyn, so the code targets **C# 5** - no
-string interpolation, `?.`, expression-bodied members, or tuples), with no SDK, NuGet, or MSBuild. It
-globs `src/` recursively into the single console executable (`Cli/` holds the one entry point). The only
-non-default reference is `System.Web.Extensions.dll` (JSON). Verify a build with `.\ratchet.cmd selftest`
-(asserts the oracle, JSON, TSV, argv quoting, the path-escape guard, chain lint, and path conventions -
-all model-free).
+The engine is a single static Go binary built with `CGO_ENABLED=0`, so one host cross-compiles to every
+`GOOS/GOARCH` (Linux, Windows, macOS, BSD; amd64/arm64/riscv64/...) with no C toolchains - the prebuilt
+binaries live in `bins/`. Verify a build with `ratchet selftest` (asserts the oracle, JSON, TSV, the
+path-escape guard, chain lint, markdown, the router gate, and path conventions - all model-free), or
+`make test` for the full Go test suite.

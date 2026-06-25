@@ -149,8 +149,8 @@ generate -> check -> (pass) done
 
 `check` is an `action` whose `on_failure` points at `fix` (a `generate` node bound to the oracle's
 errors + the previous attempt); `recheck` re-runs the same tool. **To repair twice**, add a
-`fix2`/`recheck2` pair and point `recheck.on_failure` at `fix2` (see `RatchetBox/dotnet4-x/flows/edit_file`,
-which repairs twice; `RatchetBox/dotnet4-x/flows/csharp` repairs once). Keep budgets in step with the depth.
+`fix2`/`recheck2` pair and point `recheck.on_failure` at `fix2` (see `RatchetBox/Windows/dotnet4-x/flows/edit_file`,
+which repairs twice; `RatchetBox/Windows/dotnet4-x/flows/csharp` repairs once). Keep budgets in step with the depth.
 
 ## A complete minimal chain
 
@@ -171,9 +171,9 @@ which repairs twice; `RatchetBox/dotnet4-x/flows/csharp` repairs once). Keep bud
 ## Run, lint, inspect
 
 ```
-.\ratchet.cmd flow <dir> <name> [--ws <workspace>] [input...]   # run a chain (non-interactive; --ws sets $workspace)
-.\ratchet.cmd validate-flow <dir> [name]     # lint all chains, or one by name
-.\ratchet.cmd flows <dir>                     # list a dir's chains (the /route catalog)
+ratchet flow <dir> <name> [--ws <workspace>] [input...]   # run a chain (non-interactive; --ws sets $workspace)
+ratchet validate-flow <dir> [name]     # lint all chains, or one by name
+ratchet flows <dir>                     # list a dir's chains (the /route catalog)
 ```
 
 `validate-flow` checks: valid node kinds, required fields present, every edge target is a declared

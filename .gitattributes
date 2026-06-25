@@ -1,0 +1,15 @@
+# Normalize text to LF in the repo; pin platform scripts to their native EOL so a Windows checkout
+# (autocrlf) cannot corrupt them. Mark committed binaries/images as binary (no EOL munging, no diff).
+
+* text=auto eol=lf
+
+*.go  text eol=lf
+*.sh  text eol=lf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+
+# Committed cross-compiled binaries and images.
+bins/**/ratchet      binary
+bins/**/ratchet.exe  binary
+*.png                binary
+*.exe                binary

@@ -74,5 +74,5 @@ needs. See [Author flows](author-flows.md) and [Context Binding](../concepts/con
 5. **Verify.** `ratchet doctor <ratchet>` checks the library (manifest present, entry count matches), then
    test with `/search [<lib>] <query>` in the console.
 
-Worked example: `RatchetBox/cpp` ships seven libraries (`cppref`, `guidelines`, `patterns`, `errors`,
+Worked example: `RatchetBox/Windows/cpp` ships seven libraries (`cppref`, `guidelines`, `patterns`, `errors`,
 `cppdocs`, `win32`, `howto`), each registered and plan-routed.

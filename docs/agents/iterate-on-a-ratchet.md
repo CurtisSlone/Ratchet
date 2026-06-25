@@ -43,7 +43,7 @@ Format references (the contracts): [Author flows](../how-to/author-flows.md),
 
 ## Start a new ratchet
 
-Copy `RatchetBox/template` - it ships the lifecycle (`add_file`/`edit_file`) and composition
+Copy `RatchetBox/Windows/template` - it ships the lifecycle (`add_file`/`edit_file`) and composition
 (`compose`/`add_unit`) flows working. Then: set `name`/`domain`/`models` in `ratchet.json`, implement the
 `CHANGE_ME` tools (`build_project`, `new_project`, `project_api`), fill the `<LANGUAGE>` placeholders in
 the prompts, and run `validate-flow` + `doctor`. Reference build:
@@ -51,5 +51,5 @@ the prompts, and run `validate-flow` + `doctor`. Reference build:
 
 ## The one rule
 
-Keep domain logic in the ratchet, never in the engine (`src/`). A new capability is a new flow or tool,
+Keep domain logic in the ratchet, never in the engine (`go_src/`). A new capability is a new flow or tool,
 not a host change. See [AGENTS.md](../../AGENTS.md).
