@@ -29,6 +29,32 @@ This is not about the entry unit specifically; any unit that references several 
 - **Interfaces are the lever.** An interface collapses many concrete contracts into one. A unit that
   depends on an interface holds a single, stable contract instead of N - so it stays in the reliable zone.
 
+## Keep the entry thin (a corollary)
+
+The entry unit should do ONE thing: construct the components and wire them together. When a single unit
+is both the program entry (it gets `func main`) and a substantial component (a type with methods), two
+costs stack on the same file: it is a multi-reference unit (it calls several others) AND it mixes a type
+definition with `func main`. That is the unit most likely to drift and to leave a trailing unused import
+or variable that a single repair does not clean.
+
+Observed: a URL-shortener composed cleanly for its data type, encoder, and service, but the unit specced
+as both "the HTTP server" and "the entry" failed - the generated `main.go` carried an unused import and
+an unused local that survived its one repair. The data/component units around it built first try.
+
+The lesson is upstream, in how the system is decomposed: spec exactly ONE small entry whose only job is
+wiring, and make the server (or other heavy logic) its own component. A thin entry references the others
+but defines almost nothing itself, so it stays cheap to generate and cheap to repair.
+
+## The repair budget
+
+Each composed unit gets a BOUNDED repair (the reference compose repairs once, then aborts the unit).
+That is right for data and single-reference units, which rarely need it. A unit at the multi-reference
+frontier - especially a fat entry - can need more than one round, and the leftover is usually trivial (an
+unused import or variable). Three ways to stay inside the budget, in order of preference: decompose so no
+unit is both entry and component (above); give the compose deeper repair (a second `fix`/`rebuild` pair,
+as the C# `add_file` does); or accept the partial result and close it with one `edit_file` on the unit
+that did not finish. The compiler names the exact leftover, so the corrective prompt is short.
+
 ## The Oracle gates contracts, not behavior
 
 The build checks that the code LINKS - right names, right signatures. It does NOT check that the code does
