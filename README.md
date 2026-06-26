@@ -71,8 +71,8 @@ git clone https://github.com/scanset/RatchetBox
 ```
 
 [RatchetBox](https://github.com/scanset/RatchetBox) holds ready-made ratchets, grouped by the
-platform their toolchain targets: `Linux/go` (Go, verified with `go build` - the cross-platform
-reference), and under `Windows/`: `dotnet4-x` (C# / in-box csc), `cpp` (C++ / MSVC), and `template`
+platform their toolchain targets: `Linux/go` (Go, verified with `go build`/`go vet`/`go test`, with a full project lifecycle and
+spec-to-code compose - the cross-platform reference), and under `Windows/`: `dotnet4-x` (C# / in-box csc), `cpp` (C++ / MSVC), and `template`
 (an empty, self-documented skeleton to copy).
 
 **5. Open the console** on one (needs Ollama):
@@ -96,8 +96,8 @@ winforms` -> `/ws switch Calc` -> `/flow add_file src/Core/Greeter.cs a Greeter 
 make_launcher Calc` builds a runnable WinForms app. See **[Use the console](docs/how-to/use-the-console.md)**
 for the full command set and lifecycle.
 
-**Want to see real input/output first?** `Windows/dotnet4-x` and `Windows/cpp` carry a `transcripts/`
-folder (in [RatchetBox](https://github.com/scanset/RatchetBox)) with end-to-end build transcripts -
+**Want to see real input/output first?** `Windows/dotnet4-x`, `Windows/cpp`, and `Linux/go` carry a
+`transcripts/` folder (in [RatchetBox](https://github.com/scanset/RatchetBox)) with end-to-end build transcripts -
 the exact commands sent, the code the self-hosted model generated, the build/oracle results, and the
 per-turn token counts. The fastest way to understand what driving Ratchet looks like.
 
@@ -115,6 +115,7 @@ per-turn token counts. The fastest way to understand what driving Ratchet looks 
 - **How do I get a frontier model to write my prompts?** See - [Frontier prompting](docs/agents/frontier-prompting.md).
 - **How does it actually work?** See - [Architecture](docs/concepts/architecture.md).
 - **How does each step get just the right context?** See - [Context Binding](docs/concepts/context-binding.md).
+- **How do I see what the model actually did (the run record)?** See - [Observability](docs/concepts/observability.md).
 - **How is the engine built and laid out?** See - [Work on the host](docs/how-to/work-on-the-host.md).
 - **How do I build the original Windows C# host?** See - [Build the legacy C# host](docs/how-to/build-csharp-host.md).
 - **What does a term mean?** See - [Vocabulary](docs/Terms.md).
