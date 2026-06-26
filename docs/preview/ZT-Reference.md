@@ -2,7 +2,7 @@
 
 **Making the agent loop verifiable, one signed event at a time**
 
-Curtis Slone
+ScanSet Inc
 
 ---
 
