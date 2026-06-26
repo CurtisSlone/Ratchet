@@ -16,7 +16,9 @@ import (
 	"github.com/scanset/Ratchet/internal/model"
 	"github.com/scanset/Ratchet/internal/ollama"
 	"github.com/scanset/Ratchet/internal/oracle"
+	"github.com/scanset/Ratchet/internal/runrec"
 	"github.com/scanset/Ratchet/internal/search"
+	"github.com/scanset/Ratchet/internal/snapshot"
 	"github.com/scanset/Ratchet/internal/tool"
 	"github.com/scanset/Ratchet/internal/version"
 )
@@ -43,7 +45,7 @@ func arg(args []string, i int) string {
 func isCommand(s string) bool {
 	switch s {
 	case "open", "chat", "mcp", "flow", "validate", "reindex", "index", "list", "flows", "tools",
-		"validate-flow", "doctor", "gen", "selftest", "version", "help", "-h", "--help", "-v", "--version":
+		"runs", "rollback", "validate-flow", "doctor", "gen", "selftest", "version", "help", "-h", "--help", "-v", "--version":
 		return true
 	}
 	return false
@@ -139,6 +141,10 @@ func Run(args []string) int {
 		return needDir(args, "ratchet flows <dir>", cmdFlows)
 	case "tools":
 		return needDir(args, "ratchet tools <dir>", cmdTools)
+	case "runs":
+		return cmdRuns(args)
+	case "rollback":
+		return cmdRollback(args)
 	case "selftest":
 		if SelfTest() != 0 {
 			return 2
@@ -342,6 +348,115 @@ func cmdFlow(args []string) int {
 	return 0
 }
 
+func cmdRuns(args []string) int {
+	dir := arg(args, 1)
+	if dir == "" {
+		return fail(fmt.Errorf("usage: ratchet runs <dir> [n]"))
+	}
+	inst, err := instance.Open(dir)
+	if err != nil {
+		return fail(err)
+	}
+	idx, _ := runrec.ReadIndex(inst)
+	if len(idx) == 0 {
+		fmt.Println("No runs recorded yet.")
+		return 0
+	}
+	sort.Slice(idx, func(i, j int) bool { return idx[i].RunID > idx[j].RunID })
+	limit := 15
+	if n := atoi(arg(args, 2)); n > 0 {
+		limit = n
+	}
+	if limit > len(idx) {
+		limit = len(idx)
+	}
+	for _, e := range idx[:limit] {
+		roll := ""
+		if e.Rollbackable && snapshot.Exists(inst, e.RunID) {
+			roll = "  [rollbackable]"
+		}
+		ws := e.Workspace
+		if ws == "" {
+			ws = "-"
+		}
+		fmt.Printf("%s  %-12s ws:%-12s %-10s %d tok  %d chg%s\n",
+			e.RunID, e.Chain, ws, e.Outcome, e.TokensTotal, e.ChangedFiles, roll)
+	}
+	return 0
+}
+
+func cmdRollback(args []string) int {
+	dir := arg(args, 1)
+	if dir == "" {
+		return fail(fmt.Errorf("usage: ratchet rollback <dir> [id|latest] [--ws <name>] [--yes]"))
+	}
+	inst, err := instance.Open(dir)
+	if err != nil {
+		return fail(err)
+	}
+	id, wsFlag, yes := "", "", false
+	for i := 2; i < len(args); i++ {
+		switch {
+		case args[i] == "--yes":
+			yes = true
+		case args[i] == "--ws" && i+1 < len(args):
+			wsFlag = args[i+1]
+			i++
+		default:
+			id = args[i]
+		}
+	}
+
+	idx, _ := runrec.ReadIndex(inst)
+	wsName := wsFlag
+	if wsName == "" && id != "" && id != "latest" {
+		for _, e := range idx {
+			if e.RunID == id {
+				wsName = e.Workspace
+				break
+			}
+		}
+	}
+	if wsName == "" {
+		return fail(fmt.Errorf("specify --ws <name> (or an explicit run id whose workspace is recorded)"))
+	}
+	candidates := snapshot.Rollbackable(inst, wsName)
+	if len(candidates) == 0 {
+		return fail(fmt.Errorf("nothing to roll back for workspace '%s'", wsName))
+	}
+	if id == "" || id == "latest" {
+		id = candidates[0].RunID
+	}
+	if !snapshot.Exists(inst, id) {
+		return fail(fmt.Errorf("run '%s' has no snapshot (pruned or not for this workspace)", id))
+	}
+	wsAbs := filepath.Join(inst.WorkspacesDirAbs(), wsName)
+	if !yes {
+		fmt.Printf("Would restore workspace '%s' to run %s. Re-run with --yes to apply.\n", wsName, id)
+		return 0
+	}
+	newID, changed, err := snapshot.RollbackTo(inst, wsAbs, wsName, id, inst.Config.Name, version.Version, "cli", 10)
+	if err != nil {
+		return fail(err)
+	}
+	fmt.Printf("Rolled back '%s' to run %s (%d files changed). Rollback recorded as run %s.\n", wsName, id, changed, newID)
+	return 0
+}
+
+func atoi(s string) int {
+	n := 0
+	if s == "" {
+		return 0
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return 0
+		}
+		n = n*10 + int(c-'0')
+	}
+	return n
+}
+
 func cmdFlows(inst *instance.Instance) int {
 	fdir := inst.FlowsDirAbs()
 	fmt.Println("action chains:")
@@ -403,6 +518,8 @@ const usage = `ratchet - the cross-platform ICM host
   ratchet list  <dir> [--group G] [--type T] [--json]   enumerate the KB catalog
   ratchet flows <dir>                 list the instance's flows
   ratchet tools <dir>                 list the instance's declared tools
+  ratchet runs  <dir> [n]             list recent chain runs (the audit log)
+  ratchet rollback <dir> [id|latest] [--ws w] [--yes]  restore a workspace to a run's pre-state
   ratchet gen   <dir> <prompt...>     one raw generate call
   ratchet selftest                    check the deterministic core (no model)
   ratchet version                     print the host version

@@ -32,6 +32,12 @@ const (
 	RunsDir       = "runs"       // per-chain-run state (runs/<id>/step-NNN.json)
 )
 
+// Run-record file/dir names (under RunsDir).
+const (
+	RunsIndexFile  = "index.json"       // runs/index.json: one summary entry per run
+	SnapshotSubdir = "workspace-before" // runs/<id>/workspace-before: the rollback source copy
+)
+
 // SchemaRel/SampleRel/FlowRel build the relative paths for the table/flow conventions.
 func SchemaRel(table string) string { return SchemasDir + "/" + table + ".json" }
 func SampleRel(table string) string { return SamplesDir + "/" + table + ".txt" }

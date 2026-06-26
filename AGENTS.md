@@ -30,7 +30,7 @@ verify, layout, the gotchas.
 | The manifests (tools / flows / kb) | [Build the manifests](docs/how-to/build-manifests.md) |
 | How the knowledge base works / build one | [Knowledge bases](docs/how-to/knowledge-bases.md) |
 | The spec + compose format | [Compose from specs](docs/how-to/compose-from-specs.md) |
-| How and why it works | [Architecture](docs/concepts/architecture.md), [Context Binding](docs/concepts/context-binding.md), [Composition](docs/concepts/composition.md), [Observability](docs/concepts/observability.md) |
+| How and why it works | [Architecture](docs/concepts/architecture.md), [Context Binding](docs/concepts/context-binding.md), [Composition](docs/concepts/composition.md), [Observability](docs/concepts/observability.md) ([run record schema](docs/concepts/run-record.md)) |
 | Drive a ratchet (console / MCP) | [Use the console](docs/how-to/use-the-console.md), [Drive over MCP](docs/how-to/drive-over-mcp.md) |
 | Look up a term | [Vocabulary](docs/Terms.md) |
 | Is a ratchet safe to open? | [Security](SECURITY.md) |

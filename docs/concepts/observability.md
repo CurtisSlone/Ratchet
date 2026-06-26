@@ -12,16 +12,20 @@ Each run creates a fresh, timestamped directory under the instance:
 ```
 runs/
   20260626-101455-450/        one run, id = YYYYMMDD-HHMMSS-mmm
-    meta.json                 what started it
+    meta.json                 what started it (identity + environment)
     step-001.json             one file per step, in execution order
     step-002.json
-    step-003.json
-    outcome.json              how it ended
+    changes.json              files the run added / modified / deleted
+    outcome.json              how it ended (verdict + metrics)
+    workspace-before/         pre-run copy of the workspace (the rollback source)
+  index.json                  one summary entry per run, for fast listing
 ```
 
-`runs/` is per-instance, regenerated on every run, and gitignored (it is run state, not source). The
-files are pretty-printed JSON, written through the same sandboxed IO as everything else, so they cannot
-escape the instance directory.
+`runs/` is per-instance and gitignored (it is run state, not source). Each run is its own timestamped
+directory, so records accumulate; the lightweight JSON records are kept, while the heavy
+`workspace-before/` snapshots are bounded (the last N per workspace are retained for rollback, older
+ones pruned). Everything is written through the same sandboxed IO as the rest of the engine, so it
+cannot escape the instance directory. The exact fields are the contract in [Run record](run-record.md).
 
 ## What gets recorded
 
@@ -70,21 +74,31 @@ beginning of an **audit trail**: a structured, per-step record of how an artifac
 gated it. This is the concrete form of "verify, do not trust", the chain is not only checked as it runs,
 it leaves behind a record you can verify against afterward.
 
+## Reversible, not just readable
+
+Because each run snapshots the workspace before it touches anything and records exactly what it changed
+(`changes.json`), a run is **reversible**. `/rollback` restores the active workspace to a run's
+pre-state, and the rollback is itself recorded as a reversible run (so you can undo the undo). Rollback
+and observability are the same artifact: the record carries both the before-state and the change
+manifest. `/runs` lists the log; `/snapshot` takes a manual restore point.
+
 ## Honest scope
 
-Today the run record is a **local, plaintext, regenerated** audit log. It is observability and an audit
-substrate, not yet a tamper-evident one. It is not signed, hash-linked, or proven against an immutable
-history, so it tells you what happened on this machine, not that the history has not been altered. Two
-practical limits to know: large prompts and outputs are truncated to the caps above, and `runs/` is
-overwritten run over run (it is not retained or shipped anywhere on its own).
+The records carry a **hash chain** (each step binds the prior step's hash; the outcome carries a root
+hash), so casual or accidental tampering is detectable. But the chain is **not yet signed or witnessed**:
+anyone who can rewrite the files can also recompute the chain. So today the run record is a local audit
+log with an integrity check, not a tamper-evident proof. Two other limits: large prompts and outputs are
+truncated to the caps above, and rollback depth is bounded (older runs stay viewable but only the recent
+N per workspace are rollbackable).
 
-The cryptographically verifiable layer, signing each event at birth, hash-linking the steps, and proving
-inclusion in a tamper-evident log, is the planned next layer (the ProofLayer / Zero Trust direction).
-The run record is the substrate that layer will sign. Until then, describe it as an audit log, not a
-verifiable one.
+The cryptographically verifiable layer, signing the root hash, witnessing, and proving inclusion in a
+tamper-evident log, is the planned next layer (the ProofLayer / Zero Trust direction). The hash chain
+recorded now is the substrate that layer will sign. Until then, describe it as an audit log with an
+integrity check, not a verifiable one.
 
 ## Cross-references
 
+- [Run record](run-record.md) - the exact field-level schema (the data contract)
 - [Architecture](architecture.md) - the propose-then-verify control flow the record traces
 - [Context Binding](context-binding.md) - what each step is allowed to see, made visible in the record
 - [Author flows](../how-to/author-flows.md) - the node kinds whose output shapes the record

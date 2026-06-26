@@ -116,6 +116,8 @@ per-turn token counts. The fastest way to understand what driving Ratchet looks 
 - **How does it actually work?** See - [Architecture](docs/concepts/architecture.md).
 - **How does each step get just the right context?** See - [Context Binding](docs/concepts/context-binding.md).
 - **How do I see what the model actually did (the run record)?** See - [Observability](docs/concepts/observability.md).
+- **How do I undo a flow's changes to a workspace?** Use `/rollback` (or `ratchet rollback`); see [Observability](docs/concepts/observability.md).
+- **What exactly is in a run record?** See - [Run record schema](docs/concepts/run-record.md).
 - **How is the engine built and laid out?** See - [Work on the host](docs/how-to/work-on-the-host.md).
 - **How do I build the original Windows C# host?** See - [Build the legacy C# host](docs/how-to/build-csharp-host.md).
 - **What does a term mean?** See - [Vocabulary](docs/Terms.md).

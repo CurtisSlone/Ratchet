@@ -420,6 +420,12 @@ func (d *Dispatcher) runSlash(line string, r *model.TurnResult) {
 		d.doPropose(rest, r)
 	case "ws":
 		d.doWs(rest, r)
+	case "runs":
+		d.doRuns(rest, r)
+	case "rollback":
+		d.doRollback(rest, r)
+	case "snapshot":
+		d.doSnapshot(r)
 	case "flows":
 		var sb strings.Builder
 		fl := d.flowCatalog()
@@ -490,7 +496,7 @@ func (d *Dispatcher) runNamedFlow(name, input string, r *model.TurnResult) {
 		r.Text = "[error] loading chain '" + name + "': " + err.Error()
 		return
 	}
-	cr := chain.NewEngine(d.inst, d, d.status).Run(c, input, d.activeWorkspace)
+	cr := chain.NewEngine(d.inst, d, d.status).WithCaller("console").Run(c, input, d.activeWorkspace)
 	r.Text = cr.Text
 	r.IsError = cr.IsError
 }

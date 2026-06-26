@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -18,8 +19,11 @@ import (
 	"github.com/scanset/Ratchet/internal/meta"
 	"github.com/scanset/Ratchet/internal/model"
 	"github.com/scanset/Ratchet/internal/ollama"
+	"github.com/scanset/Ratchet/internal/runrec"
 	"github.com/scanset/Ratchet/internal/search"
+	"github.com/scanset/Ratchet/internal/snapshot"
 	"github.com/scanset/Ratchet/internal/tool"
+	"github.com/scanset/Ratchet/internal/version"
 )
 
 // Generator is what the engine needs from the dispatcher: the Ollama URL and a streaming-aware
@@ -39,17 +43,20 @@ type Result struct {
 }
 
 const (
-	hardStepCap   = 100 // backstop when a chain declares no max_steps
-	decideTimeout = 60000
-	maxDepth      = 8 // foreach nesting cap
+	hardStepCap         = 100 // backstop when a chain declares no max_steps
+	decideTimeout       = 60000
+	maxDepth            = 8  // foreach nesting cap
+	defaultSnapshotKeep = 10 // workspace snapshots retained per workspace (rollback depth)
 )
 
 // Engine runs chains for one instance, generating via gen.
 type Engine struct {
-	inst   *instance.Instance
-	gen    Generator
-	status func(string)
-	depth  int
+	inst        *instance.Instance
+	gen         Generator
+	status      func(string)
+	depth       int
+	caller      string // console | mcp | cli (provenance, recorded in the run meta)
+	parentRunID string // set on foreach sub-runs to link back to the parent run
 }
 
 // NewEngine builds a top-level engine.
@@ -61,7 +68,51 @@ func newEngine(inst *instance.Instance, gen Generator, status func(string), dept
 	if status == nil {
 		status = func(string) {}
 	}
-	return &Engine{inst: inst, gen: gen, status: status, depth: depth}
+	return &Engine{inst: inst, gen: gen, status: status, depth: depth, caller: "cli"}
+}
+
+// WithCaller tags the engine's provenance ("console", "mcp", "cli"); recorded in each run's meta.
+func (e *Engine) WithCaller(c string) *Engine {
+	if c != "" {
+		e.caller = c
+	}
+	return e
+}
+
+// runContext holds the per-run state the records and rollback need.
+type runContext struct {
+	runID    string
+	meta     runrec.Meta
+	prevHash string
+	wsAbs    string
+	wsName   string
+	snapped  bool
+	startT   time.Time
+	tok0     int64
+	pTok0    int64
+	eTok0    int64
+	visits   map[string]int // generate node id -> execution count (for first-pass / repair metrics)
+	gateN    int            // gated (action/foreach) executions
+	gateOK   int            // gated executions that passed
+	repairs  int            // generate re-executions (repair_index > 0)
+	stepN    int            // last step number written
+}
+
+// recordStep finalizes a step's timing and hash-chain fields and writes step-NNN.json.
+func (e *Engine) recordStep(rc *runContext, n int, start time.Time, st runrec.Step) {
+	st.Index = n
+	st.Started = start.Format(time.RFC3339)
+	st.DurationMS = time.Since(start).Milliseconds()
+	h, _ := runrec.WriteStep(e.inst, rc.runID, st, rc.prevHash)
+	rc.prevHash = h
+	rc.stepN = n
+}
+
+func boolExit(ok bool) int {
+	if ok {
+		return 0
+	}
+	return 1
 }
 
 // Run executes chain c with the given input and active workspace.
@@ -78,15 +129,50 @@ func (e *Engine) Run(c *model.Chain, input, workspace string) Result {
 	splitInputs(c.Inputs, state["$input"], state)
 
 	now := time.Now()
-	runID := now.Format("20060102-150405") + fmt.Sprintf("-%03d", now.Nanosecond()/1e6)
-	e.writeState(runID, "meta.json", jsonx.Obj("chain", c.ID, "workspace", state["$workspace"], "input", state["$input"], "started", now.Format("2006-01-02T15:04:05")))
+	rc := &runContext{
+		runID:  runrec.UniqueRunID(e.inst, now),
+		wsAbs:  workspace,
+		startT: now,
+		tok0:   ollama.MeterTotal(),
+		pTok0:  ollama.MeterPrompt(),
+		eTok0:  ollama.MeterEval(),
+		visits: map[string]int{},
+	}
+	if workspace != "" {
+		rc.wsName = filepath.Base(workspace)
+	}
+	// Snapshot the workspace before any step writes (top-level runs only; sub-runs are covered by
+	// the parent's snapshot). A snapshot failure disables rollback for this run but does not fail it.
+	if e.depth == 0 && workspace != "" {
+		if err := snapshot.Snapshot(rc.wsAbs, snapshot.SnapshotDirAbs(e.inst, rc.runID)); err == nil {
+			rc.snapped = true
+		} else {
+			e.status("snapshot skipped: " + err.Error())
+		}
+	}
+	rc.meta = runrec.Meta{
+		RunID:         rc.runID,
+		Kind:          runrec.KindFlow,
+		ParentRunID:   e.parentRunID,
+		Ratchet:       e.inst.Config.Name,
+		EngineVersion: version.Version,
+		ChainID:       c.ID,
+		Caller:        e.caller,
+		Workspace:     rc.wsName,
+		Input:         cap16(input),
+		InputSHA256:   runrec.Sha256Hex([]byte(input)),
+		ModelSeats:    runrec.Seats{Generate: e.inst.Config.Models.Generate, Dispatch: e.inst.Config.Models.Dispatch, Embed: e.inst.Config.Models.Embed},
+		OllamaHost:    e.gen.URL(),
+		OSArch:        runtime.GOOS + "/" + runtime.GOARCH,
+		Started:       now.Format(time.RFC3339),
+	}
+	metaHash, _ := runrec.WriteMeta(e.inst, rc.meta)
+	rc.prevHash = metaHash
 
 	maxSteps := c.MaxSteps
 	if maxSteps <= 0 {
 		maxSteps = hardStepCap
 	}
-	tok0 := ollama.MeterTotal()
-	startT := time.Now()
 	lastOutput := ""
 	step := c.Entry
 	n := 0
@@ -97,12 +183,12 @@ func (e *Engine) Run(c *model.Chain, input, workspace string) Result {
 			res.Outcome = fmt.Sprintf("aborted: max_steps (%d)", maxSteps)
 			break
 		}
-		if c.MaxTokens > 0 && (ollama.MeterTotal()-tok0) > int64(c.MaxTokens) {
+		if c.MaxTokens > 0 && (ollama.MeterTotal()-rc.tok0) > int64(c.MaxTokens) {
 			res.IsError = true
 			res.Outcome = "aborted: max_tokens"
 			break
 		}
-		if c.MaxWallclock > 0 && time.Since(startT).Seconds() > c.MaxWallclock {
+		if c.MaxWallclock > 0 && time.Since(rc.startT).Seconds() > c.MaxWallclock {
 			res.IsError = true
 			res.Outcome = "aborted: max_wallclock"
 			break
@@ -116,27 +202,25 @@ func (e *Engine) Run(c *model.Chain, input, workspace string) Result {
 		}
 		n++
 		e.status(fmt.Sprintf("step %d: %s (%s)", n, a.ID, a.Kind))
-		stepFile := fmt.Sprintf("step-%03d.json", n)
+		stepStart := time.Now()
 
 		switch a.Kind {
 		case conventions.ActionKindExit:
 			res.Outcome = orElse(a.Outcome, "success")
-			e.writeState(runID, stepFile, jsonx.Obj("node", a.ID, "kind", a.Kind, "outcome", res.Outcome))
-			step = ""
-			// reached an exit: stop the loop with a recorded outcome
-			e.finish(&res, c, step, n, lastOutput, runID)
-			return res
+			e.recordStep(rc, n, stepStart, runrec.Step{Node: a.ID, Kind: a.Kind, Outcome: res.Outcome})
+			return e.finish(&res, rc, c, "", lastOutput)
 
 		case conventions.ActionKindGenerate:
 			slots := e.resolveSlots(a, state)
 			gp := render(e.readPrompt(a), slots)
+			pB, eB := ollama.MeterPrompt(), ollama.MeterEval()
 			var outp string
 			if a.OutputSchema != nil {
 				jv, err := ollama.GenerateJSON(e.gen.URL(), e.inst.Config.Models.Generate, gp, a.OutputSchema, 0.2, decideTimeout, nil)
 				if err != nil {
 					res.IsError = true
 					res.Outcome = "aborted: " + err.Error()
-					return e.fail(&res, c, n, lastOutput, runID)
+					return e.fail(&res, rc, c, lastOutput)
 				}
 				outp = jsonx.Serialize(jv)
 			} else {
@@ -145,29 +229,44 @@ func (e *Engine) Run(c *model.Chain, input, workspace string) Result {
 				if err != nil {
 					res.IsError = true
 					res.Outcome = "aborted: " + err.Error()
-					return e.fail(&res, c, n, lastOutput, runID)
+					return e.fail(&res, rc, c, lastOutput)
 				}
 			}
 			state[a.ID] = outp
 			lastOutput = outp
-			e.writeState(runID, stepFile, jsonx.Obj("node", a.ID, "kind", a.Kind, "prompt", cap16(gp), "output", cap16(outp)))
+			ri := rc.visits[a.ID]
+			rc.visits[a.ID]++
+			if ri > 0 {
+				rc.repairs++
+			}
+			pD, eD := int(ollama.MeterPrompt()-pB), int(ollama.MeterEval()-eB)
+			e.recordStep(rc, n, stepStart, runrec.Step{
+				Node: a.ID, Kind: a.Kind, Model: e.inst.Config.Models.Generate, RepairIndex: ri,
+				Tokens: runrec.Tokens{Prompt: pD, Completion: eD, Total: pD + eD},
+				Prompt: cap16(gp), Output: cap16(outp), OutputSHA256: runrec.Sha256Hex([]byte(outp)),
+			})
 			step = a.OnSuccess
 
 		case conventions.ActionKindAiBranch:
 			slots := e.resolveSlots(a, state)
+			pB, eB := ollama.MeterPrompt(), ollama.MeterEval()
 			next, err := e.decide(a, render(e.readPrompt(a), slots))
 			if err != nil {
 				res.IsError = true
 				res.Outcome = "aborted: " + err.Error()
-				return e.fail(&res, c, n, lastOutput, runID)
+				return e.fail(&res, rc, c, lastOutput)
 			}
 			state[a.ID] = next
-			e.writeState(runID, stepFile, jsonx.Obj("node", a.ID, "kind", a.Kind, "next", next))
+			pD, eD := int(ollama.MeterPrompt()-pB), int(ollama.MeterEval()-eB)
+			e.recordStep(rc, n, stepStart, runrec.Step{
+				Node: a.ID, Kind: a.Kind, Model: e.inst.Config.DispatchModel(), Next: next,
+				Tokens: runrec.Tokens{Prompt: pD, Completion: eD, Total: pD + eD},
+			})
 			tgt, ok := a.Transitions[next]
 			if !ok {
 				res.IsError = true
 				res.Outcome = "aborted: '" + a.ID + "' returned unroutable '" + next + "'"
-				return e.fail(&res, c, n, lastOutput, runID)
+				return e.fail(&res, rc, c, lastOutput)
 			}
 			step = tgt
 
@@ -176,7 +275,14 @@ func (e *Engine) Run(c *model.Chain, input, workspace string) Result {
 			ok, output := e.runActionNode(a, slots)
 			state[a.ID] = output
 			lastOutput = output
-			e.writeState(runID, stepFile, jsonx.Obj("node", a.ID, "kind", a.Kind, "ok", ok, "output", cap4(output)))
+			rc.gateN++
+			if ok {
+				rc.gateOK++
+			}
+			e.recordStep(rc, n, stepStart, runrec.Step{
+				Node: a.ID, Kind: a.Kind, Output: cap4(output),
+				Oracle: &runrec.Oracle{Tool: a.Tool, ExitCode: boolExit(ok), OK: ok},
+			})
 			if ok {
 				step = a.OnSuccess
 			} else {
@@ -192,15 +298,22 @@ func (e *Engine) Run(c *model.Chain, input, workspace string) Result {
 				}
 			}
 			state[a.ID] = strings.TrimRight(sb.String(), "\n")
-			e.writeState(runID, stepFile, jsonx.Obj("node", a.ID, "kind", a.Kind, "output", cap4(state[a.ID])))
+			e.recordStep(rc, n, stepStart, runrec.Step{Node: a.ID, Kind: a.Kind, Output: cap4(state[a.ID])})
 			step = a.OnSuccess
 
 		case conventions.ActionKindForEach:
 			slots := e.resolveSlots(a, state)
-			ok, out := e.runForeach(a, slots, c, state, tok0, startT)
+			ok, out := e.runForeach(a, slots, c, state, rc)
 			state[a.ID] = out
 			lastOutput = out
-			e.writeState(runID, stepFile, jsonx.Obj("node", a.ID, "kind", a.Kind, "ok", ok, "output", cap4(out)))
+			rc.gateN++
+			if ok {
+				rc.gateOK++
+			}
+			e.recordStep(rc, n, stepStart, runrec.Step{
+				Node: a.ID, Kind: a.Kind, Output: cap4(out),
+				Oracle: &runrec.Oracle{Tool: "foreach:" + a.Flow, ExitCode: boolExit(ok), OK: ok},
+			})
 			if ok {
 				step = a.OnSuccess
 			} else {
@@ -214,12 +327,13 @@ func (e *Engine) Run(c *model.Chain, input, workspace string) Result {
 		}
 	}
 
-	return e.finish(&res, c, step, n, lastOutput, runID)
+	return e.finish(&res, rc, c, step, lastOutput)
 }
 
-// finish records the terminal state and fills res.Text/Steps. Falling off the graph is an error.
-func (e *Engine) finish(res *Result, c *model.Chain, step string, n int, lastOutput, runID string) Result {
-	res.Steps = n
+// finish records the terminal state + metrics, writes outcome.json + the change manifest + the index
+// entry, then prunes old snapshots. Falling off the graph (step=="" with no outcome) is an error.
+func (e *Engine) finish(res *Result, rc *runContext, c *model.Chain, step, lastOutput string) Result {
+	res.Steps = rc.stepN
 	if step == "" && res.Outcome == "" {
 		res.Outcome = "aborted: chain ended without reaching an exit node"
 		res.IsError = true
@@ -227,17 +341,77 @@ func (e *Engine) finish(res *Result, c *model.Chain, step string, n int, lastOut
 	if lastOutput != "" {
 		res.Text = lastOutput
 	} else {
-		res.Text = fmt.Sprintf("[chain %s -> %s, %d step(s)]", c.ID, res.Outcome, n)
+		res.Text = fmt.Sprintf("[chain %s -> %s, %d step(s)]", c.ID, res.Outcome, rc.stepN)
 	}
-	e.writeState(runID, "outcome.json", jsonx.Obj("outcome", res.Outcome, "steps", res.Steps, "error", res.IsError))
+
+	genNodes := len(rc.visits)
+	firstPass := 0
+	for _, v := range rc.visits {
+		if v == 1 {
+			firstPass++
+		}
+	}
+	passRate := 0.0
+	if rc.gateN > 0 {
+		passRate = float64(rc.gateOK) / float64(rc.gateN)
+	}
+
+	var changes []runrec.Change
+	rollbackable := false
+	snapRel := ""
+	if rc.snapped {
+		changes, _ = snapshot.Diff(snapshot.SnapshotDirAbs(e.inst, rc.runID), rc.wsAbs)
+		_ = runrec.WriteChanges(e.inst, rc.runID, changes)
+		rollbackable = true
+		snapRel = snapshot.SnapshotRel(rc.runID)
+	}
+
+	abort := ""
+	if strings.HasPrefix(res.Outcome, "aborted") {
+		abort = res.Outcome
+	}
+
+	dur := time.Since(rc.startT).Milliseconds()
+	o := runrec.Outcome{
+		Outcome:        res.Outcome,
+		Finished:       time.Now().Format(time.RFC3339),
+		DurationMS:     dur,
+		Steps:          rc.stepN,
+		Error:          res.IsError,
+		AbortReason:    abort,
+		Tokens:         runrec.Tokens{Prompt: int(ollama.MeterPrompt() - rc.pTok0), Completion: int(ollama.MeterEval() - rc.eTok0), Total: int(ollama.MeterTotal() - rc.tok0)},
+		RepairCount:    rc.repairs,
+		FirstPassSteps: firstPass,
+		GenerateSteps:  genNodes,
+		OraclePassRate: passRate,
+		ChangedFiles:   len(changes),
+		Rollbackable:   rollbackable,
+		SnapshotPath:   snapRel,
+	}
+	_ = runrec.WriteOutcome(e.inst, rc.runID, o, rc.prevHash)
+	_ = runrec.AppendIndex(e.inst, runrec.IndexEntry{
+		RunID:        rc.runID,
+		Time:         rc.meta.Started,
+		Kind:         rc.meta.Kind,
+		Chain:        c.ID,
+		Workspace:    rc.wsName,
+		Outcome:      res.Outcome,
+		DurationMS:   dur,
+		TokensTotal:  o.Tokens.Total,
+		ChangedFiles: o.ChangedFiles,
+		Rollbackable: rollbackable,
+	})
+	if rc.snapped && rc.wsName != "" {
+		_ = snapshot.Prune(e.inst, rc.wsName, defaultSnapshotKeep)
+	}
 	return *res
 }
 
-func (e *Engine) fail(res *Result, c *model.Chain, n int, lastOutput, runID string) Result {
-	return e.finish(res, c, "", n, lastOutput, runID)
+func (e *Engine) fail(res *Result, rc *runContext, c *model.Chain, lastOutput string) Result {
+	return e.finish(res, rc, c, "", lastOutput)
 }
 
-func (e *Engine) runForeach(a model.ActionNode, slots map[string]string, c *model.Chain, state map[string]string, tok0 int64, startT time.Time) (bool, string) {
+func (e *Engine) runForeach(a model.ActionNode, slots map[string]string, c *model.Chain, state map[string]string, rc *runContext) (bool, string) {
 	listText := ""
 	if a.Over != "" {
 		if lv, ok := slots[a.Over]; ok {
@@ -260,19 +434,22 @@ func (e *Engine) runForeach(a model.ActionNode, slots map[string]string, c *mode
 			if item == "" {
 				continue
 			}
-			if c.MaxTokens > 0 && (ollama.MeterTotal()-tok0) > int64(c.MaxTokens) {
+			if c.MaxTokens > 0 && (ollama.MeterTotal()-rc.tok0) > int64(c.MaxTokens) {
 				out.WriteString("aborted: max_tokens (foreach)\n")
 				failCount++
 				break
 			}
-			if c.MaxWallclock > 0 && time.Since(startT).Seconds() > c.MaxWallclock {
+			if c.MaxWallclock > 0 && time.Since(rc.startT).Seconds() > c.MaxWallclock {
 				out.WriteString("aborted: max_wallclock (foreach)\n")
 				failCount++
 				break
 			}
 			itemInput := render(orElse(a.ItemInput, "{{ item }}"), map[string]string{"item": item})
 			e.status("foreach " + a.ID + ": " + item)
-			r := newEngine(e.inst, e.gen, e.status, e.depth+1).Run(sub, itemInput, ws)
+			se := newEngine(e.inst, e.gen, e.status, e.depth+1)
+			se.caller = e.caller
+			se.parentRunID = rc.runID
+			r := se.Run(sub, itemInput, ws)
 			if r.IsError || strings.HasPrefix(r.Outcome, "aborted") {
 				failCount++
 			}
@@ -533,10 +710,6 @@ func splitInputs(names []string, input string, state map[string]string) {
 		}
 	}
 	state[names[len(names)-1]] = remaining
-}
-
-func (e *Engine) writeState(runID, file string, obj map[string]any) {
-	_ = e.inst.WriteFile(conventions.RunsDir+"/"+runID+"/"+file, jsonx.SerializePretty(obj))
 }
 
 func orElse(s, fallback string) string {
