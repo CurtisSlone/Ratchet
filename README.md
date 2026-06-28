@@ -111,6 +111,7 @@ per-turn token counts. The fastest way to understand what driving Ratchet looks 
 - **How does the knowledge base work, and how do I build one?** See - [Knowledge bases](docs/how-to/knowledge-bases.md).
 - **How do I build a whole system from specs?** See - [Compose from specs](docs/how-to/compose-from-specs.md).
 - **Why is multi-file composition reliable (and where does it break)?** See - [Composition](docs/concepts/composition.md).
+- **What ways are there to drive generation (spec-driven, test-driven), and what do they teach?** See - [Methodologies](docs/concepts/methodologies.md).
 - **How do I drive it from Claude over MCP?** See - [Drive over MCP](docs/how-to/drive-over-mcp.md).
 - **How do I get a frontier model to write my prompts?** See - [Frontier prompting](docs/agents/frontier-prompting.md).
 - **How does it actually work?** See - [Architecture](docs/concepts/architecture.md).
