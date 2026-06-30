@@ -24,6 +24,17 @@ The difference that matters: spec-driven trusts a test generated next to the cod
 test is meaningful (red) before any code exists, then drives the code to green. Test-driven costs more
 steps and buys more assurance.
 
+## Layering: depth over breadth (composes over either)
+
+Both methodologies above build a system in one pass. **Layering** is orthogonal scheduling on top: build a
+small working skeleton, then apply capability in stages, each a verified diff over the last - the way real
+software is actually written. Keep a full spec **snapshot per layer** (each the complete intended system at
+that stage) and DERIVE the increment by diffing two snapshots; the changeset is computed, never authored,
+so it cannot drift. Each layer is then one small pass over the verified workspace - the workspace *is* the
+state, the snapshot is the next recipe, context is released between passes. See
+[Compose from specs § Layering](../how-to/compose-from-specs.md#layering-evolve-a-built-module-in-stages)
+for the mechanics; the lesson it forces is below ("growth and change are different oracles").
+
 ## The assurance ladder
 
 The methodologies are rungs of one ladder of increasing Oracle strength over the same code:
@@ -72,6 +83,21 @@ large-count overflow - that slips through a build-only gate.)
   the model is not failing - it is guessing, and its guess disagrees with the test's guess. State the exact
   rule and the invariant the Oracle will check. The decisions only you can make belong in the spec, not in
   the repair loop.
+- **Growth and change are different oracles.** Adding a unit to a system is *append-only* - it cannot break
+  an existing caller, so the per-unit "build the whole module" gate (compose) is correct. *Editing* a unit
+  is the opposite: a callee and its callers must change together, so a per-unit gate can never pass mid-edit
+  (it falsely fails the correct unit, and its repair - handed a broken module - duplicates other files'
+  definitions and corrupts the package). A change must be a **transactional cross-cutting edit**: regenerate
+  the whole changed set, write all, verify once, roll back all. Same engine, two oracles, chosen by whether
+  the work adds or edits. Picking the wrong one does not merely fail - it corrupts.
+- **The oracle's blind spot and the model's weak spot are often the same unit - put the human there.** The
+  entry/orchestration unit (the `main` that wires everything and scripts behavior) is both the least
+  constrained (so the model's output is most variable - it will silently drop or restructure the intended
+  behavior) AND the one unit a build/test oracle cannot gate on *intent* (it has no test, so any version that
+  compiles passes). Those two failures coincide. Every *component* unit - the ones the oracle can check - the
+  model gets right; the entry unit is where "the human edits intent" (the architecture's own promise) earns
+  its keep. Don't read a clean module gate as a working demo: where intent matters and no test covers it,
+  review or author by hand.
 
 ## The capability frontier: which residual are you in?
 
