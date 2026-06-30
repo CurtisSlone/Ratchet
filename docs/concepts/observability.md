@@ -4,6 +4,9 @@ Every action-chain run writes a complete, structured record of itself to disk. T
 observability layer: not a log you have to parse, but a per-step transcript of what each step saw, what
 the model proposed, what the oracle decided, and how the run ended. Where an open agent loop leaves you
 with a tangled conversation, a chain run leaves you with a clean, inspectable record of every decision.
+That cleanliness is a direct consequence of statelessness: because each step's context is *assembled* from
+declared bindings rather than accumulated, the recorded prompt IS the whole context the model saw (see
+[Stateless by construction](context-binding.md#stateless-by-construction)).
 
 ## Where it lives
 

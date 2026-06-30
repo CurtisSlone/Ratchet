@@ -50,7 +50,10 @@ Two guardrails keep this honest:
 
 The other half of reliability (alongside the Oracle) is **what each step is allowed to see**. A step
 in a chain is given *only* its declared inputs, bound into named slots and capped in size - never a
-cumulative transcript, prior prompts, or engine state. Each binding names its source:
+cumulative transcript, prior prompts, or engine state. The model is, in effect, a **stateless function**:
+each node's context is assembled, used once, and released, and the generate call is a single prompt with no
+conversation history (see [Stateless by construction](context-binding.md#stateless-by-construction)). Each
+binding names its source:
 
 - a prior step's output,
 - a fixed reference entry (always present - for constant constraints), or

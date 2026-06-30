@@ -22,6 +22,36 @@ The contrast that matters:
 
 Context Binding turns context from a chaotic, non-deterministic tape into an explicitly bound contract.
 
+## Stateless by construction
+
+Binding does not just *scope* context - it makes the model a **stateless function**. The flow is the
+program, the workspace is the state, and a node's context is **assembled, used once, and released**. There
+is no running conversation anywhere in a flow:
+
+- **Each `generate` node renders ONE prompt from its bound slots and calls the model with that single
+  string** - `ollama.Generate(prompt)`, not a `[]Message` history. The model sees the rendered prompt and
+  nothing else; it cannot recall a previous node.
+- **State is per-run.** The engine creates a fresh slot/output map at the start of every `Run` and discards
+  it when the flow returns. Node outputs DO accumulate in that map (so a later node can *bind* an earlier
+  one), but the model never sees the map - only the slots a node declares. A `foreach` builds each item in
+  its **own** `Run` with its own fresh map, so even sub-units start blank.
+- **Released at the end.** When a flow finishes, the only thing that persists is what the Oracle committed
+  to the workspace (files, plus snapshots for rollback). The assembled context evaporates.
+
+The guarantee, enforced by the engine and not by prompt discipline: **node 2 cannot see node 1's output
+unless you explicitly bind it** (`{ "from": "<node1>", "as": "..." }`). This is the opposite of an agent
+that accumulates one ever-growing tape, and it is why the engine scales to arbitrarily large workspaces -
+each context stays small (a few bound slots + retrieval) while the *state* lives on disk.
+
+Two properties elsewhere in the system are corollaries of statelessness: **repair must re-bind the prior
+attempt** (a stateless call does not remember it - see [Your previous version](#your-previous-version)), and
+**growth requires retrieval** (as a codebase outgrows any single context, each node must fetch what it needs
+rather than recall it).
+
+> One path is deliberately *not* stateless: the `ratchet chat` console keeps a bounded conversation
+> `history` and injects "Conversation so far:" into its prompt. That is a separate, conversational path;
+> **flows never touch it.** If you ever see context accumulate, you are in chat, not a flow.
+
 ## The contract (the mechanism)
 
 A node declares `inputs[]`. Each entry is a binding: a **source**, a **destination slot** (`as`), and
