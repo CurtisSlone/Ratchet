@@ -133,6 +133,13 @@ and **roll back every file** on failure - the `coedit`/`stage_files` pattern, dr
 > Rule of thumb: **adding** units → per-unit gate (compose). **Editing** units → whole-set transactional
 > gate (evolve). Picking the wrong one does not merely fail; it corrupts.
 
+A layer can also **shrink**: a unit dropped between snapshots is derived the same way, its file pruned
+before regeneration, and the whole-module verify proves nothing still references it (a dangling reference
+fails and rolls back). And when a layer's changed set still fails after the bounded repair - usually a
+genuine capability wall (residual #4) rather than a fixable slip - the pass writes an **escalation
+signal** (the stuck specs + current files + errors + last attempt) to `<workspace>/signal/` instead of a
+bare abort, so a human or a stronger model can finish just that one node and re-run.
+
 The working example (the Go ratchet's `webhookd`, a webhook dispatcher grown L0→L4: skeleton → WAL →
 retry/breaker → idempotency/dead-letter → metrics) and its transcript live under
 `RatchetBox/Linux/go/{flows/evolve,transcripts/webhookd-layered-build.md}`.
